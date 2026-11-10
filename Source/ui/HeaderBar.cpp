@@ -2,9 +2,9 @@
 #include "CustomLookAndFeel.h"
 
 HeaderBar::HeaderBar (const juce::String& title, const Layout& l, PresetManager& presets, PromptOverlay& o,
-                      std::function<void()> m, const juce::String& about, juce::Component& meterToShow)
+                      std::function<void()> m, const juce::String& about, juce::Component& trailingControls)
     : layout (l), prompt (o), showManual (std::move (m)), aboutText (about),
-      presetActions (presets, prompt), presetBar (presets, presetActions), meter (meterToShow)
+      presetActions (presets, prompt), presetBar (presets, presetActions), trailing (trailingControls)
 {
     // For screen readers, as the title is painted
     setTitle (title);
@@ -13,7 +13,7 @@ HeaderBar::HeaderBar (const juce::String& title, const Layout& l, PresetManager&
 
     addAndMakeVisible (presetBar);
     addAndMakeVisible (menuButton);
-    addAndMakeVisible (meter);
+    addAndMakeVisible (trailing);
 }
 
 juce::Font HeaderBar::titleFont (const Layout& l)
@@ -25,7 +25,7 @@ void HeaderBar::paint (juce::Graphics& g)
 {
     g.fillAll (findColour (backgroundColourId));
 
-    // The meter's repaints reach here too
+    // The controls' repaints reach here too
     const auto titleArea = getLocalBounds().withTrimmedLeft (layout.edge).withWidth (layout.titleWidth);
     if (! g.clipRegionIntersects (titleArea))
         return;
@@ -39,7 +39,7 @@ void HeaderBar::paint (juce::Graphics& g)
 void HeaderBar::resized()
 {
     auto bounds = getLocalBounds().reduced (layout.edge, 0);
-    meter.setBounds (bounds.removeFromRight (layout.meterWidth).reduced (0, layout.meterInset));
+    trailing.setBounds (bounds.removeFromRight (layout.trailingWidth).reduced (0, layout.trailingInset));
 
     auto controls = bounds.withTrimmedLeft (layout.titleWidth + layout.gap).withTrimmedRight (layout.gap);
     controls = controls.withSizeKeepingCentre (controls.getWidth(), layout.controlsHeight);

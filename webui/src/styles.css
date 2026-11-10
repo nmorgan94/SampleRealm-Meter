@@ -1,15 +1,16 @@
-/* LookAndFeel_V4's dark colour scheme */
+/* The first theme of Source/shared/Themes.h, until the editor sets the chosen one's */
 @theme static {
-  --color-background: #323e44;
-  --color-widget: #263238;
-  --color-line: #8e989b;
-  --color-fg: #ffffff;
-  --color-thumb: #42a2c8;
-  --color-clip: #ff3d4a;
+  --color-background: #070a14;
+  --color-widget: #0c1120;
+  --color-line: #1d2a44;
+  --color-fg: #e8f4ff;
+  --color-dim: #6f84a8;
+  --color-thumb: #19e6ff;
+  --color-clip: #ff3d5a;
 
   /* For the shared header and overlays, as the native colour IDs in CustomLookAndFeel */
   --color-header: var(--color-widget);
-  --color-title: var(--color-fg);
+  --color-title: var(--color-thumb);
   --color-overlay-dim: color-mix(in oklab, var(--color-background) 75%, transparent);
   --color-overlay-panel: var(--color-widget);
   --color-overlay-outline: var(--color-line);
@@ -26,6 +27,20 @@
   font-family: Orbitron;
   font-weight: 400 900;
   src: url('../../Assets/OrbitronVariable.ttf') format('truetype');
+}
+
+/* Made again on the editor, from the colours its theme sets there: see meter/theme.ts */
+.editor {
+  --color-header: var(--color-widget);
+  --color-overlay-dim: color-mix(in oklab, var(--color-background) 75%, transparent);
+  --color-overlay-panel: var(--color-widget);
+  --color-overlay-outline: var(--color-line);
+  --color-input: var(--color-background);
+  --color-input-outline: var(--color-line);
+  --color-input-focus: var(--color-thumb);
+  --color-input-highlight: color-mix(in oklab, var(--color-thumb) 40%, transparent);
+  --color-scrollbar: var(--color-thumb);
+  color: var(--color-fg);
 }
 
 body {

@@ -2,9 +2,9 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Parameters.h"
-#include "dsp/Effect.h"
-#include "dsp/PeakMeter.h"
+#include "dsp/MeterEngine.h"
 #include "presets/PresetManager.h"
+#include "shared/EditorSize.h"
 
 //==============================================================================
 class AudioPluginAudioProcessor final : public juce::AudioProcessor
@@ -19,7 +19,6 @@ public:
     void releaseResources() override;
 
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-    void numChannelsChanged() override;
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;
@@ -49,19 +48,24 @@ public:
 
     //==============================================================================
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
-    PeakMeter& getOutputMeter()                    { return outputMeter; }
+    MeterEngine& getMeterEngine()                  { return meterEngine; }
     PresetManager& getPresetManager()              { return presetManager; }
 
     static PresetManager::Config createPresetConfig();
+
+    //==============================================================================
+    /** The editor's size, kept with the session but not with presets. */
+    juce::Point<int> getEditorSize() const noexcept   { return { editorWidth.load(), editorHeight.load() }; }
+    void setEditorSize (int width, int height) noexcept;
 
 private:
     juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters",
                                                Parameters::createLayout() };
     PresetManager presetManager { apvts, createPresetConfig() };
 
-    Effect effect;
+    MeterEngine meterEngine;
 
-    PeakMeter outputMeter { getTotalNumOutputChannels() };
+    std::atomic<int> editorWidth { EditorSize::defaultWidth }, editorHeight { EditorSize::defaultHeight };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

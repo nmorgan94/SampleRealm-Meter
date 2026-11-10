@@ -1,9 +1,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include "shared/ParameterSpecs.h"
-#include "shared/EffectSettings.h"
 #include "shared/UiInfoJson.h"
-#include "dsp/Effect.h"
-#include "dsp/PeakMeter.h"
+#include "dsp/MeterEngine.h"
 
 // BuildCommit.cpp
 extern const char* const buildCommit;
@@ -12,14 +10,9 @@ extern const char* const buildCommit;
 namespace
 {
     constexpr int maxBlockSize = 128;
-    constexpr int maxChannels = PeakMeter::maxChannels;
+    constexpr int maxChannels = MeterEngine::maxChannels;
 
     constexpr auto numParams = static_cast<int> (ParameterSpecs::all.size());
-
-    constexpr auto indexOf (const ParameterSpecs::Spec& spec)
-    {
-        return std::ranges::find (ParameterSpecs::all, &spec) - ParameterSpecs::all.begin();
-    }
 
     auto defaultValues()
     {
@@ -33,13 +26,7 @@ namespace
 
     auto values = defaultValues();
 
-    float valueOf (const ParameterSpecs::Spec& spec)
-    {
-        return values[static_cast<size_t> (indexOf (spec))];
-    }
-
-    Effect effect;
-    PeakMeter meter { maxChannels };
+    MeterEngine meter;
     juce::AudioBuffer<float> buffer { maxChannels, maxBlockSize };
     int numChannels = maxChannels;
     double currentSampleRate = 48000.0;
@@ -59,11 +46,11 @@ EXPORT (prepare) void prepare (double sampleRate, int channels)
 {
     numChannels = std::clamp (channels, 1, maxChannels);
     currentSampleRate = sampleRate;
-    meter.setNumChannels (numChannels);
     buffer.clear();
-    effect.prepare (sampleRate);
+    meter.prepare (sampleRate, numChannels);
 }
 
+// The parameters only change how the editor looks, so the engine just keeps them
 EXPORT (setParam) void setParam (int index, float value)
 {
     if (index >= 0 && index < numParams)
@@ -73,7 +60,7 @@ EXPORT (setParam) void setParam (int index, float value)
 // The page plays the host: render moves the position on while playing
 EXPORT (setTransport) void setTransport (double bpm, bool playing, double ppq)
 {
-    transport = { bpm, playing, ppq };
+    transport = { bpm, playing, ppq, true };
 }
 
 // Write the input here, and read the output back after render
@@ -86,14 +73,24 @@ EXPORT (render) void render (int numSamples)
 {
     juce::AudioBuffer<float> block { buffer.getArrayOfWritePointers(), numChannels, std::clamp (numSamples, 0, maxBlockSize) };
 
-    effect.setSettings (makeEffectSettings (valueOf));
-    effect.process (block, transport);
-    meter.process (block);
+    // A meter only listens: the block is left as it was written
+    meter.process (block, transport);
     transport.advance (block.getNumSamples(), currentSampleRate);
 }
 
-// The loudest output sample since the last call, as linear gain
-EXPORT (peak) float peak (int index)
+// The meter now as MeterFrame::size floats, given how long it's been since the last call
+EXPORT (frame) const float* frame (double seconds)
 {
-    return index >= 0 && index < numChannels ? meter.readAndReset (index) : 0.0f;
+    return meter.updateFrame (seconds).data();
+}
+
+EXPORT (frameSize) int frameSize()
+{
+    return MeterFrame::size;
+}
+
+// Starts the integrated loudness and the held peaks again, on the next render
+EXPORT (resetMeters) void resetMeters()
+{
+    meter.requestReset();
 }

@@ -11,28 +11,50 @@ const fakePort = () => {
 
 test('changes made before the worklet attaches reach it once it does, in order and once each', () => {
   const backend = workletBackend(info);
-  backend.setValue('masterGain', -12);
-  backend.setValue('masterGain', -3);
+  backend.setValue('theme', 3);
+  backend.setValue('theme', 1);
 
   const { port, posted } = fakePort();
   backend.attach(port);
-  backend.setValue('masterGain', 2);
+  backend.setValue('view', 2);
 
   assert.deepEqual(posted, [
-    { type: 'param', index: 0, value: -12 },
-    { type: 'param', index: 0, value: -3 },
-    { type: 'param', index: 0, value: 2 },
+    { type: 'param', index: 0, value: 3 },
+    { type: 'param', index: 0, value: 1 },
+    { type: 'param', index: 2, value: 2 },
   ]);
 });
 
 test('values read back and notify before the worklet attaches', () => {
   const backend = workletBackend(info);
   const heard: number[] = [];
-  backend.subscribe('masterGain', (value) => heard.push(value));
+  backend.subscribe('theme', (value) => heard.push(value));
 
-  assert.equal(backend.getValue('masterGain'), 0);
-  backend.setValue('masterGain', -6);
+  assert.equal(backend.getValue('theme'), 0);
+  backend.setValue('theme', 4);
 
-  assert.equal(backend.getValue('masterGain'), -6);
-  assert.deepEqual(heard, [-6]);
+  assert.equal(backend.getValue('theme'), 4);
+  assert.deepEqual(heard, [4]);
+});
+
+test('frames from the worklet reach the listeners, and a reset reaches the worklet', () => {
+  const backend = workletBackend(info);
+  const { port, posted } = fakePort();
+  backend.attach(port);
+
+  const heard: Float32Array[] = [];
+  const stop = backend.onFrame((frame) => heard.push(frame));
+  const frame = new Float32Array([1, 2, 3]);
+
+  port.onmessage?.({ data: { type: 'frame', frame } } as MessageEvent);
+  stop();
+  port.onmessage?.({ data: { type: 'frame', frame } } as MessageEvent);
+  assert.deepEqual(heard, [frame]);
+
+  // The page hears of a reset too, to run the engine for it while paused
+  let resets = 0;
+  backend.onReset(() => resets++);
+  backend.resetMeters();
+  assert.deepEqual(posted, [{ type: 'reset' }]);
+  assert.equal(resets, 1);
 });

@@ -1,4 +1,5 @@
-const LEVEL_EVERY_BLOCKS = 8;
+// A block is 128 samples at any sample rate, so this is about 60 frames a second: every 6 blocks at 48 kHz
+const FRAME_EVERY_BLOCKS = Math.max(1, Math.round(sampleRate / (60 * 128)));
 
 class EngineProcessor extends AudioWorkletProcessor {
   constructor({ processorOptions: { wasm, channels } }) {
@@ -19,12 +20,13 @@ class EngineProcessor extends AudioWorkletProcessor {
 
     this.channels = channels;
     this.blocks = 0;
-    this.lastSilent = false;
     this.views = [];
+    this.frameSize = this.engine.frameSize();
 
     this.port.onmessage = ({ data }) => {
       if (data.type === 'param') this.engine.setParam(data.index, data.value);
       else if (data.type === 'transport') this.engine.setTransport(data.bpm, data.playing, data.ppq);
+      else if (data.type === 'reset') this.engine.resetMeters();
     };
 
     this.port.postMessage({ type: 'ready' });
@@ -55,11 +57,11 @@ class EngineProcessor extends AudioWorkletProcessor {
 
     output.forEach((channel, index) => channel.set(this.view(Math.min(index, this.channels - 1), frames)));
 
-    if (++this.blocks % LEVEL_EVERY_BLOCKS === 0) {
-      const peaks = Array.from({ length: this.channels }, (_, channel) => this.engine.peak(channel));
-      const silent = peaks.every((peak) => peak === 0);
-      if (!silent || !this.lastSilent) this.port.postMessage({ type: 'level', peaks });
-      this.lastSilent = silent;
+    if (++this.blocks % FRAME_EVERY_BLOCKS === 0) {
+      const pointer = this.engine.frame((FRAME_EVERY_BLOCKS * frames) / sampleRate);
+      // A copy, handed over rather than cloned
+      const frame = new Float32Array(this.engine.memory.buffer, pointer, this.frameSize).slice();
+      this.port.postMessage({ type: 'frame', frame }, [frame.buffer]);
     }
 
     return true;

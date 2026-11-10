@@ -4,6 +4,7 @@ import { aboutText, type About } from './about.ts';
 import type { PresetBackend } from './backend.ts';
 import { FittedText, TextButton, type Rect } from './controls.tsx';
 import { juceHeight } from './fonts.ts';
+import { centred } from './layout.ts';
 import { useMenu } from './Menu.tsx';
 import { presetActions } from './presetActions.ts';
 import { PresetBar } from './PresetBar.tsx';
@@ -12,7 +13,7 @@ import type { Prompt } from './PromptOverlay.tsx';
 // HeaderBar::Layout, which each plugin sets
 export interface HeaderLayout {
   height: number;
-  // Left of the title, right of the meter
+  // Left of the title, right of the controls
   edge: number;
   // A longer title is squeezed to fit
   titleWidth: number;
@@ -20,20 +21,21 @@ export interface HeaderLayout {
   // Either side of the preset bar and menu
   gap: number;
   controlsHeight: number;
-  meterWidth: number;
-  // Above and below the meter
-  meterInset: number;
+  // The plugin's controls, at the right
+  trailingWidth: number;
+  // Above and below them
+  trailingInset: number;
 }
 
 // HeaderBar::resized
 const layOut = (width: number, layout: HeaderLayout) => {
-  const { height, edge, titleWidth, gap, controlsHeight, meterWidth, meterInset } = layout;
-  const meter: Rect = { left: width - edge - meterWidth, top: meterInset, width: meterWidth, height: height - 2 * meterInset };
+  const { height, edge, titleWidth, gap, controlsHeight, trailingWidth, trailingInset } = layout;
+  const trailing: Rect = { left: width - edge - trailingWidth, top: trailingInset, width: trailingWidth, height: height - 2 * trailingInset };
   const left = edge + titleWidth + gap;
-  const controls: Rect = { left, top: Math.trunc((height - controlsHeight) / 2), width: meter.left - gap - left, height: controlsHeight };
+  const controls: Rect = { left, top: centred(height, controlsHeight), width: trailing.left - gap - left, height: controlsHeight };
   return {
     title: { left: edge, top: 0, width: titleWidth, height },
-    meter,
+    trailing,
     menu: { ...controls, left: controls.left + controls.width - 28, width: 28 },
     presetBar: { ...controls, width: controls.width - 28 - 4 },
   };
@@ -46,10 +48,10 @@ interface HeaderBarProps {
   backend: { info: About; running: string; presets: PresetBackend };
   prompt: Prompt;
   showManual(): void;
-  meter(bounds: Rect): ReactNode;
+  trailing(bounds: Rect): ReactNode;
 }
 
-export function HeaderBar({ title, width, layout, backend, prompt, showManual, meter }: HeaderBarProps) {
+export function HeaderBar({ title, width, layout, backend, prompt, showManual, trailing }: HeaderBarProps) {
   const menu = useMenu();
   const boxes = layOut(width, layout);
   const actions = presetActions(backend.presets, prompt);
@@ -75,7 +77,7 @@ export function HeaderBar({ title, width, layout, backend, prompt, showManual, m
       <PresetBar presets={backend.presets} actions={actions} bounds={boxes.presetBar} />
       <TextButton text="..." style={boxes.menu} onClick={(e) => void showMenu(e.currentTarget)} />
       {menu.element}
-      {meter(boxes.meter)}
+      {trailing(boxes.trailing)}
     </>
   );
 }

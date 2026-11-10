@@ -4,7 +4,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "" FORCE)
 set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "" FORCE)
 
 # Change to your project name
-project(JuceStarter)
+project(Meter)
 
 # Enables `ctest`
 enable_testing()
@@ -50,7 +50,7 @@ endif()
 juce_add_plugin(${PROJECT_NAME}
         ${webViewPluginOptions}
         COMPANY_NAME
-          CompanyName
+          SampleRealm
         IS_SYNTH
           FALSE
         NEEDS_MIDI_INPUT
@@ -66,9 +66,9 @@ juce_add_plugin(${PROJECT_NAME}
         COPY_PLUGIN_AFTER_BUILD
           ${PLUGIN_COPY_AFTER_BUILD}
         PLUGIN_MANUFACTURER_CODE
-          Cmpy
+          Sprm
         PLUGIN_CODE
-          Plgn
+          Metr
         VERSION 
           0.0.1
         FORMATS

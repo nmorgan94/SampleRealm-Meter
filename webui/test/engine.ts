@@ -5,7 +5,7 @@ import { readUiInfo, stubImports, type Engine } from '../src/demo/workletBackend
 
 const instance = new WebAssembly.Instance(new WebAssembly.Module(readFileSync(localEnginePath())), stubImports());
 
-const engine = instance.exports as Engine;
+export const engine = instance.exports as Engine;
 engine._initialize?.();
 
 export const info = readUiInfo(engine);

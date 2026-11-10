@@ -22,7 +22,9 @@ TEST_CASE_METHOD (ProcessorFixture, "Parameters match the snapshot hosts rely on
     };
 
     const std::vector<Expected> snapshot {
-        { "masterGain", 1, "Master Gain", "dB", -60.0f, 6.0f, 0.1f, 1.0f, 0.0f, { "-60.0", "-27.0", "6.0" } },
+        { "theme", 1, "Theme", "", 0.0f, 4.0f, 1.0f, 1.0f, 0.0f, { "Neon", "Phosphor", "Ice" } },
+        { "reactivity", 1, "Reactivity", "", 0.0f, 2.0f, 1.0f, 1.0f, 2.0f, { "Off", "Subtle", "Full" } },
+        { "view", 1, "View", "", 0.0f, 3.0f, 1.0f, 1.0f, 0.0f, { "Dashboard", "Stereo", "Loudness" } },
     };
 
     const auto& parameters = processor.getParameters();
@@ -51,38 +53,14 @@ TEST_CASE_METHOD (ProcessorFixture, "Parameters match the snapshot hosts rely on
         CHECK (parameter->getText (0.0f, 100) == expected.textAt0HalfAnd1[0]);
         CHECK (parameter->getText (0.5f, 100) == expected.textAt0HalfAnd1[1]);
         CHECK (parameter->getText (1.0f, 100) == expected.textAt0HalfAnd1[2]);
+
+        // How the meter looks isn't for automating
+        CHECK_FALSE (parameter->isAutomatable());
     }
 }
 
 //==============================================================================
-TEST_CASE_METHOD (ProcessorFixture, "Master gain scales the signal", "[dsp][gain]")
-{
-    const auto [gainDb, expectedGain] = GENERATE (table<float, float> ({
-        {   0.0f, 1.0f },
-        {  -6.0f, 0.501187f },
-        {   6.0f, 1.995262f },
-        { -60.0f, 0.0f },       // the bottom of the range is treated as silence
-    }));
-
-    CAPTURE (gainDb);
-    setParameter (processor, Parameters::masterGainId, gainDb);
-
-    constexpr float input = 0.5f;
-    auto buffer = makeConstantBuffer (2, blockSize, input);
-    process (processor, buffer);
-
-    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
-    {
-        CHECK_THAT (buffer.getSample (channel, 0), WithinAbs (input * expectedGain, 1.0e-4));
-        CHECK_THAT (buffer.getSample (channel, blockSize - 1), WithinAbs (input * expectedGain, 1.0e-4));
-
-        // The output meter reads the signal after the gain
-        CHECK_THAT (processor.getOutputMeter().readAndReset (channel), WithinAbs (input * expectedGain, 1.0e-4));
-    }
-}
-
-//==============================================================================
-TEST_CASE_METHOD (ProcessorFixture, "Output stays finite for any block size, input and gain", "[dsp]")
+TEST_CASE_METHOD (ProcessorFixture, "The audio goes out exactly as it came in", "[dsp]")
 {
     // Includes a block larger than the size given to prepareToPlay, which some hosts send
     const auto numSamples = GENERATE (1, 64, blockSize, blockSize * 4);
@@ -92,17 +70,33 @@ TEST_CASE_METHOD (ProcessorFixture, "Output stays finite for any block size, inp
 
     CAPTURE (numSamples, amplitude);
 
-    // Sweep the gain across its whole range between blocks, as host automation would
-    for (const auto gainDb : { -60.0f, -30.0f, -6.0f, 0.0f, 6.0f })
-    {
-        CAPTURE (gainDb);
-        setParameter (processor, Parameters::masterGainId, gainDb);
+    const auto input = makeTone (2, numSamples / sampleRate, 440.0, amplitude);
+    auto buffer = input;
+    process (processor, buffer);
 
-        auto buffer = makeSineBuffer (2, numSamples, 440.0f, amplitude);
-        process (processor, buffer);
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+        CHECK (std::equal (input.getReadPointer (channel), input.getReadPointer (channel) + numSamples, buffer.getReadPointer (channel)));
+}
 
-        CHECK (allSamplesFinite (buffer));
-    }
+TEST_CASE_METHOD (ProcessorFixture, "Audio that isn't a number passes through and leaves the meter working", "[dsp]")
+{
+    auto buffer = makeConstantBuffer (2, blockSize, std::numeric_limits<float>::quiet_NaN());
+    buffer.setSample (1, 3, std::numeric_limits<float>::infinity());
+    process (processor, buffer);
+    CHECK (std::isnan (buffer.getSample (0, 0)));
+
+    inBlocks (makeTone (2, 3.0, 1000.0, 0.5f), [this] (juce::AudioBuffer<float>& block) { process (processor, block); });
+
+    const auto& frame = processor.getMeterEngine().updateFrame (0.016);
+
+    // The first value that isn't a number, if there is one
+    const auto broken = std::find_if (frame.begin(), frame.end(), [] (float value) { return ! std::isfinite (value); });
+    const auto brokenIndex = broken - frame.begin();
+
+    CAPTURE (brokenIndex);
+    CHECK (broken == frame.end());
+
+    CHECK_THAT (frame[MeterFrame::momentary], WithinAbs (-6.02, 0.2));
 }
 
 //==============================================================================
@@ -117,26 +111,6 @@ TEST_CASE_METHOD (ProcessorFixture, "Only matching mono or stereo layouts are su
     CHECK_FALSE (processor.isBusesLayoutSupported ({ { Set::mono() },   { Set::stereo() } }));
     CHECK_FALSE (processor.isBusesLayoutSupported ({ { Set::stereo() }, { Set::mono() } }));
     CHECK_FALSE (processor.isBusesLayoutSupported ({ { Set::create5point1() }, { Set::create5point1() } }));
-}
-
-TEST_CASE_METHOD (ProcessorFixture, "Output meter follows the bus layout", "[buses][meter]")
-{
-    using Set = juce::AudioChannelSet;
-
-    const auto changeLayout = [this] (const Set& set)
-    {
-        processor.releaseResources();
-        REQUIRE (processor.setBusesLayout ({ { set }, { set } }));
-        processor.prepareToPlay (sampleRate, blockSize);
-    };
-
-    CHECK (processor.getOutputMeter().getNumChannels() == 2);
-
-    changeLayout (Set::mono());
-    CHECK (processor.getOutputMeter().getNumChannels() == 1);
-
-    changeLayout (Set::stereo());
-    CHECK (processor.getOutputMeter().getNumChannels() == 2);
 }
 
 //==============================================================================
@@ -162,11 +136,14 @@ TEST_CASE ("The transport takes the host's tempo and position, or defaults", "[t
     host.position = position;
 
     CHECK (Transport::from (&host) == Transport { 128.0, true, 8.5 });
+    CHECK (Transport::from (&host).available);
 
     // The Standalone has no play head. Hosts may give no position, or leave out the tempo and the beat
     CHECK (Transport::from (nullptr) == Transport {});
+    CHECK_FALSE (Transport::from (nullptr).available);
     host.position = juce::nullopt;
     CHECK (Transport::from (&host) == Transport {});
+    CHECK_FALSE (Transport::from (&host).available);
     host.position = juce::AudioPlayHead::PositionInfo {};
     CHECK (Transport::from (&host) == Transport {});
 }
@@ -185,22 +162,43 @@ TEST_CASE ("The transport moves on only while playing", "[transport]")
 }
 
 //==============================================================================
-TEST_CASE_METHOD (ProcessorFixture, "State round trips into a new instance", "[state]")
+TEST_CASE_METHOD (ProcessorFixture, "State round trips into a new instance, with the editor's size", "[state]")
 {
-    setParameter (processor, Parameters::masterGainId, -12.0f);
+    setParameter (processor, Parameters::themeId, 3.0f);
+    setParameter (processor, Parameters::reactivityId, 0.0f);
+    setParameter (processor, Parameters::viewId, 2.0f);
+    processor.setEditorSize (1200, 700);
 
     juce::MemoryBlock state;
     processor.getStateInformation (state);
 
     AudioPluginAudioProcessor restored;
+    CHECK (restored.getEditorSize() == juce::Point<int> (EditorSize::defaultWidth, EditorSize::defaultHeight));
     restored.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
 
-    CHECK_THAT (getParameter (restored, Parameters::masterGainId), WithinAbs (-12.0, 1.0e-4));
+    CHECK_THAT (getParameter (restored, Parameters::themeId), WithinAbs (3.0, 1.0e-4));
+    CHECK_THAT (getParameter (restored, Parameters::reactivityId), WithinAbs (0.0, 1.0e-4));
+    CHECK_THAT (getParameter (restored, Parameters::viewId), WithinAbs (2.0, 1.0e-4));
+    CHECK (restored.getEditorSize() == juce::Point<int> (1200, 700));
+
+    // Kept by the processor, not left where a saved preset would pick it up
+    CHECK_FALSE (restored.getAPVTS().state.hasProperty ("editorWidth"));
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "The editor's size stays within its limits, and a preset doesn't change it", "[state]")
+{
+    processor.setEditorSize (10, 99999);
+    CHECK (processor.getEditorSize() == juce::Point<int> (EditorSize::minWidth, EditorSize::maxHeight));
+
+    processor.setEditorSize (1000, 640);
+    auto& presets = processor.getPresetManager();
+    REQUIRE (presets.loadPreset (presets.find ("Ember Pulse", true).value()));
+    CHECK (processor.getEditorSize() == juce::Point<int> (1000, 640));
 }
 
 TEST_CASE_METHOD (ProcessorFixture, "Invalid state is ignored", "[state]")
 {
-    setParameter (processor, Parameters::masterGainId, -3.0f);
+    setParameter (processor, Parameters::themeId, 2.0f);
 
     SECTION ("Random bytes")
     {
@@ -220,5 +218,5 @@ TEST_CASE_METHOD (ProcessorFixture, "Invalid state is ignored", "[state]")
         processor.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
     }
 
-    CHECK_THAT (getParameter (processor, Parameters::masterGainId), WithinAbs (-3.0, 1.0e-4));
+    CHECK_THAT (getParameter (processor, Parameters::themeId), WithinAbs (2.0, 1.0e-4));
 }

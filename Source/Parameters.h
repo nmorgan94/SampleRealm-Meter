@@ -12,7 +12,9 @@ namespace Parameters
 
     // Parameter IDs — use these constants everywhere instead of raw strings.
     // inline const means one definition shared across all translation units (C++17).
-    inline const juce::ParameterID masterGainId { ParameterSpecs::masterGain.id, versionHint };
+    inline const juce::ParameterID themeId      { ParameterSpecs::theme.id, versionHint };
+    inline const juce::ParameterID reactivityId { ParameterSpecs::reactivity.id, versionHint };
+    inline const juce::ParameterID viewId       { ParameterSpecs::view.id, versionHint };
 
     // Built from ParameterSpecs::all, in its order
     juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

@@ -1,75 +1,120 @@
-# JuceStarter
+# SampleRealm: Meter
 
-A JUCE audio plugin template for creating VST3, AU, and Standalone audio plugins on macOS and Windows.
+An output meter with a spectrum, a stereo field scope, and loudness with true peak, made to look good on screen
 
 ## Features
 
-- VST3, AU (macOS only), and Standalone formats
-- Builds on macOS and Windows with the same preset commands
-- Modern C++23
-- Automatic JUCE dependency management via CPM
-- Binary asset support
-- Plugin validation via pluginval, wired up as CTest tests
-- Unit tests with Catch2, run through CTest alongside pluginval
-- One parameter list, `Source/shared/ParameterSpecs.h`, read by the plugin, the wasm engine and the web UI
-- A playable web demo: the DSP built as WebAssembly, with a React copy of the editor
-- An optional WebView editor, the same React editor inside the plugin
-- A manual, `Assets/Manual.md`, shown inside the editor and the demo
+The meter only listens: the audio goes out exactly as it came in.
 
-
-## Adding Assets
-
-Files in `Assets/` are embedded as `BinaryData` (reconfigure after adding one):
-
-```cpp
-#include <BinaryData.h>
-
-auto image = juce::ImageCache::getFromMemory (BinaryData::your_image_png, BinaryData::your_image_pngSize);
+```
+in ──────────────────────────────────────────────→ out
+ │
+ └─→ loudness + true peak ──┐
+ └─→ spectrum ──────────────┼─→ frame ─→ editor
+ └─→ stereo field + beat ───┘
 ```
 
-## Manual
+### Spectrum
 
-`Assets/Manual.md` is what **... → Manual** shows, in the native editor, the WebView editor and the
-demo. Each plugin writes its own. Only this much Markdown is read:
+- 96 bands spaced evenly in pitch, 20 Hz to 20 kHz
+- 4096-point FFT at 44.1 and 48 kHz, longer at higher rates so the window covers about the same time
+- Tilted up 4.5 dB/oct around 1 kHz, so most music reads about level
+- Rises fast and falls 24 dB a second, with a thin line holding each band's highest level
 
-- `# ` heading, `## ` subheading, `- ` bullet
-- Any other line is text, joined to the paragraph or bullet above until a blank line
-- No inline formatting, links or images
+### Stereo Field
 
-`Source/ui/Manual.cpp` and `webui/src/manual.ts` parse it; their tests share one sample, so change both together.
+- Goniometer with a fading trace: mono is an upright line, out of phase lies flat
+- Scaled to the signal's recent peak, so quiet material fills the scope too
+- Correlation, -1 to +1, turning red below 0
+- Left/right balance
 
-## Prerequisites
+### Loudness
 
-- CMake 3.25 or higher
-- C++23 compatible compiler:
+- ITU-R BS.1770-4 and EBU R 128: momentary (400 ms), short-term (3 s) and gated integrated loudness, in LUFS
+- Loudness range (EBU Tech 3342), in LU
+- Bars for momentary and short-term, with the integrated loudness as a line across them
+
+### True Peak
+
+- 4× oversampled, as BS.1770-4, so peaks between samples are caught
+- A falling bar per channel, and the highest peak held in dBTP
+- A clip counter: each time the signal goes over 0 dBTP, with overs within 100 ms counted once
+
+### Play and Reset
+
+- Starting playback starts the integrated loudness, the range, the held peaks and the clip count again
+- While the host is stopped they wait, and the integrated loudness shows PAUSED
+- If the host stops sending audio altogether, the display falls away as it would through silence
+- With no host transport, as in the Standalone, they always run
+- **RESET** starts them again by hand, along with the spectrum's held line
+
+### Views and Size
+
+- One dashboard with all three panels
+- A panel's corner button, or a double-click, expands it over the whole editor, and the same goes back
+- The editor is resizable from 800 × 500 to 1920 × 1200. Its size is saved with the session, not with presets
+
+### Look
+
+- Five colour themes: Neon, Ember, Phosphor, Ultraviolet and Ice
+- **FX** sets how much the display moves with the beat: Full, Subtle or Off
+- **CAPTURE** hides the header and the small labels for a clean screen recording, leaving a small wordmark.
+  Move the mouse and press **EXIT CAPTURE** to go back
+- Presets store the look (theme, FX and view), with six factory looks in `Assets/Presets/`
+
+## System Requirements
+
+**macOS**
+
+- macOS 12.0 (Monterey) or later
+- Universal 2 - runs natively on Intel and Apple Silicon
+- VST3, AU, or Standalone
+
+**Windows**
+
+- Windows 10 or later, 64-bit
+- VST3 or Standalone
+
+On both, mono or stereo, and the input layout must match the output.
+
+## Build Requirements
+
+- CMake 3.25+
+- A C++23 capable compiler
   - **macOS**: Xcode or its Command Line Tools (the `xcode` preset needs the full Xcode app)
   - **Windows**: Visual Studio 2022 or later with the "Desktop development with C++" workload
-- Git (for downloading JUCE)
+- Git
+
+JUCE is fetched automatically at configure time via CPM into `.cpm-cache/`, shared by every preset and by `wasm/` -
+there is no submodule to initialize. A build folder made before the cache needs its `_deps/juce-*` removed first.
+
+The web demo also needs Emscripten (`brew install emscripten`) and Node 24+.
 
 ## Commands
 
-Every command is the same on macOS and Windows, except the rows marked **macOS** or **Windows**.
-Each workflow configures, builds and, for tests, runs in one go.
+Every command is the same on both platforms, except the rows marked **macOS** or **Windows**. Each
+workflow configures, builds and, for tests, runs in one go.
 
 | Task | Command |
 |---|---|
 | Build the plugin (Debug) | `cmake --workflow --preset debug` |
 | Build the plugin (Release) | `cmake --workflow --preset release` |
 | Run the unit tests | `cmake --workflow --preset unit` |
-| Run the unit tests against a Release build | `cmake --workflow --preset unit-release` |
 | Run the unit tests and pluginval | `cmake --workflow --preset test` |
 | Run all tests against a Release build | `cmake --workflow --preset test-release` |
 | Build the plugin with the WebView editor (Release) | `cmake --workflow --preset webview` |
 | Launch the Standalone app (Debug) | `cmake --build --preset run` |
-| Install the plugin for your DAW: **macOS** | Automatic on every build |
-| Install the plugin for your DAW: **Windows** | `cmake --build --preset install-windows`, from an administrator prompt |
-| Open in an IDE for debugging: **macOS** | `cmake --preset xcode`, then open `build-xcode/JuceStarter.xcodeproj` |
-| Open in an IDE for debugging: **Windows** | Open `build-debug\JuceStarter.sln` in Visual Studio after a Debug workflow |
+| Install for your DAW: **macOS** | Automatic on every build |
+| Install for your DAW: **Windows** | `cmake --build --preset install-windows`, from an administrator prompt |
+| Open in an IDE for debugging: **macOS** | `cmake --preset xcode`, then open `build-xcode/Meter.xcodeproj` |
+| Open in an IDE for debugging: **Windows** | Open `build-debug\Meter.sln` in Visual Studio after a Debug workflow |
 
-`run` and `install-windows` use the Debug build, so run a Debug workflow such as
-`cmake --workflow --preset debug` once first.
+`run` and `install-windows` use the Debug build, so run `cmake --workflow --preset debug` once first.
+Windows installs on demand rather than after every build because its VST3 folder needs
+administrator rights; `-DPLUGIN_COPY_AFTER_BUILD=ON` opts back in.
 
 The individual steps still work on their own, for example to pass a `-D` option:
+
 ```bash
 cmake --preset debug -DPLUGINVAL_STRICTNESS=5   # configure
 cmake --build --preset test                     # build
@@ -79,36 +124,19 @@ ctest --preset debug                            # test
 `cmake --list-presets=all` lists the presets for your platform: `xcode` only appears on macOS, and
 `install-windows` only on Windows.
 
-### What Happens During Build
-
-1. **First time only**: CMake downloads JUCE, pluginval and Catch2 automatically via CPM
-   into `.cpm-cache/`, shared by every preset and by `wasm/`
-   (configure with `-DENABLE_PLUGINVAL=OFF -DENABLE_UNIT_TESTS=OFF` to fetch only JUCE).
-   A build folder made before the cache needs its `_deps/juce-*` removed first
-2. **Every build**: Compiles your plugin in the selected configuration
-3. **macOS only, by default**: Installs plugins to system directories
-   (see [System Installation](#system-installation))
-
-## Debugging in Xcode
-
-Generate and open the project with the `xcode` preset (see [Commands](#commands)). To debug the
-plugin inside a host:
-
-1. Select your plugin target from the scheme dropdown
-2. Go to **Product → Scheme → Edit Scheme**
-3. Click **Run** on the left sidebar
-4. Under **Executable**, choose **Other** and navigate to executable.
-
 ## Unit Tests
 
 Unit tests live in `Tests/` and use [Catch2](https://github.com/catchorg/Catch2). They build into a
-`JuceStarter_Tests` executable that links the plugin's code and drives the processor directly.
-Run them with the `unit`, `unit-release`, `test` or `test-release` workflow (see [Commands](#commands)).
-
-Like pluginval, the tests are not part of a plain build: the `debug` workflow builds only the plugin.
+`Meter_Tests` executable that links the plugin's code and drives the processor directly, checking
+a snapshot of every parameter as hosts see it, bus layouts, state save and restore, that the audio
+passes through bit for bit, the loudness against the signals and tolerances of EBU Tech 3341 and 3342
+at 44.1, 48 and 96 kHz, the true peak, the spectrum, the stereo field, the transport's resets, and
+the editor's layout, views, themes and capture mode.
 
 Add a `.cpp` file to `Tests/` and reconfigure to pick it up. `Tests/TestHelpers.h` has helpers for
 setting parameters and processing buffers. Set `-DENABLE_UNIT_TESTS=OFF` to skip them entirely.
+
+Like pluginval, the tests are not part of a plain build: the `debug` workflow builds only the plugin.
 
 ## Validating the Plugin
 
@@ -116,33 +144,49 @@ setting parameters and processing buffers. Set `-DENABLE_UNIT_TESTS=OFF` to skip
 tests it for stability. It is built from source on demand, so there is nothing to install.
 
 ```bash
-cmake --build --preset debug --target validate   # builds the plugin and pluginval, then validates
+cmake --build --preset debug --target validate   # builds, then validates
+ctest --preset debug                             # validates an existing build
 ```
 
-To run pluginval together with the unit tests, use the `test` workflow (see [Commands](#commands)).
-
 Logs land in `build-debug/pluginval-logs/`. Strictness defaults to 10; use
-`-DPLUGINVAL_STRICTNESS=5` (range 1–10) for a faster run, or `-DENABLE_PLUGINVAL=OFF` to skip
+`-DPLUGINVAL_STRICTNESS=5` (range 1 to 10) for a faster run, or `-DENABLE_PLUGINVAL=OFF` to skip
 pluginval entirely.
 
-The AU test validates the installed component in `~/Library/Audio/Plug-Ins/Components`, since macOS
-resolves Audio Units through its registry rather than by path - so it needs `PLUGIN_COPY_AFTER_BUILD`
-left on. Steinberg's VST3 conformance validator is off by default, as it pulls ~300MB of SDK for one
-extra test; enable it with `-DPLUGINVAL_VST3_VALIDATOR=ON`.
+On macOS the AU test validates the installed component in `~/Library/Audio/Plug-Ins/Components`,
+since macOS resolves Audio Units through its registry rather than by path, so it needs
+`PLUGIN_COPY_AFTER_BUILD` left on. Steinberg's VST3 conformance validator is off by default, as it
+pulls ~300MB of SDK for one extra test; enable it with `-DPLUGINVAL_VST3_VALIDATOR=ON`.
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds the Release plugin on macOS and Windows
-and runs the unit tests. It only runs when started by hand: **Actions → CI → Run workflow** on
-GitHub, or `gh workflow run ci.yml`. Tick **Also run pluginval** (or pass `-f pluginval=true`) to
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds the Release plugin on macOS and
+Windows and runs the unit tests. It only runs when started by hand: **Actions → CI → Run workflow**
+on GitHub, or `gh workflow run ci.yml`. Tick **Also run pluginval** (or pass `-f pluginval=true`) to
 validate the plugin too, which takes longer.
 
-Each run's page lists the plugins under **Artifacts** for 30 days: `JuceStarter-macOS.tar.gz` (VST3
-and AU) and `JuceStarter-Windows.tar.gz` (VST3). They are unsigned.
+Each run's page lists the plugins under **Artifacts** for 30 days: `Meter-macOS.tar.gz` (VST3 and
+AU) and `Meter-Windows.tar.gz` (VST3). They are unsigned.
+
+## Parameters
+
+`Source/shared/ParameterSpecs.h` is the only parameter list, read by the plugin, the wasm engine and
+the web UI. The snapshot test in `Tests/ProcessorTests.cpp` pins what hosts and saved sessions see.
+The three parameters (theme, reactivity, view) only change the look, and hosts can't automate them.
+
+## Engine and Editors
+
+- `Source/dsp/MeterEngine` measures everything. `process()` takes the audio on the audio thread, and
+  `updateFrame()` turns what it heard into one flat array of floats, a frame, about 60 times a second.
+  All the smoothing and ballistics happen there, so the editors only draw.
+- `Source/shared/MeterFrame.h` is the frame's layout, `MeterScales.h` the display scales and `Themes.h` the colour themes.
+  The web UI gets all three from the engine rather than keeping a copy.
+- The native editor draws the frame in `Source/ui/meter/` and the React editor in `webui/src/meter/`.
+  The files mirror each other, and their layout, scale and text tests share the same cases, so change both together.
+- The engine uses only `juce_audio_basics`, as the wasm build has no other JUCE module.
+- The K-weighting filter's frequencies, gain and Qs in `Source/dsp/LoudnessMeter.cpp` are the ones
+  [libebur128](https://github.com/jiixyj/libebur128) (MIT licence) uses to make BS.1770's filters at any sample rate.
 
 ## Web Demo and WebView Editor
-
-Needs Emscripten (`brew install emscripten`) and Node 24+.
 
 | Task | Command |
 |---|---|
@@ -151,56 +195,34 @@ Needs Emscripten (`brew install emscripten`) and Node 24+.
 | Typecheck and test the UI on their own | `cd webui && npm run typecheck && npm test` |
 | Build the plugin with the WebView editor | `cmake --workflow --preset webview` |
 
-- The demo builds to `wasm/build-wasm/<company>-<project>-<version>/`, named from `COMPANY_NAME`
-  (one word), `project()` and `VERSION` in `CMakeLists.txt`. Upload that folder; the site embeds its `index.html` in an iframe.
-  [`wasm.yml`](.github/workflows/wasm.yml) builds the same folder on GitHub as an artifact of that name, run by hand.
+- The demo builds to `wasm/build-wasm/SampleRealm-Meter-<version>/`, named from `COMPANY_NAME`,
+  `project()` and `VERSION` in `CMakeLists.txt`. Upload that folder; the site embeds its `index.html` in an iframe.
+  [`wasm.yml`](.github/workflows/wasm.yml) builds the same folder on GitHub as an artifact of that name, run by hand:
+  **Actions → Web demo → Run workflow**, or `gh workflow run wasm.yml`.
 - The demo's input is made by `webui/src/demo/loop.ts`. For a recording, add it to
   `webui/public/demo/` as AAC (`.m4a`) so Safari can decode it, and decode it in `startAudio`.
+- The demo runs the same engine as the plugin, so its readings are the plugin's. It is a fixed 960 × 600, scaled to fit the page.
 - The `webview` build installs over the native one; run the `release` workflow to switch back.
 - Delete `wasm/patches/juce-wasm.patch` once JUCE fixes its wasm support.
 
-## Plugin Locations
+## Debugging in Xcode
 
-### Build Artifacts
+### 1. Generate Xcode Project
 
-Paths are shown for macOS. On Windows the Standalone is `JuceStarter.exe` instead of `JuceStarter.app`,
-and there is no AU.
-
-**Debug Build:**
-- Standalone: `build-debug/JuceStarter_artefacts/Debug/Standalone/JuceStarter.app`
-- AU: `build-debug/JuceStarter_artefacts/Debug/AU/JuceStarter.component`
-- VST3: `build-debug/JuceStarter_artefacts/Debug/VST3/JuceStarter.vst3`
-
-**Release Build:**
-- Standalone: `build-release/JuceStarter_artefacts/Release/Standalone/JuceStarter.app`
-- AU: `build-release/JuceStarter_artefacts/Release/AU/JuceStarter.component`
-- VST3: `build-release/JuceStarter_artefacts/Release/VST3/JuceStarter.vst3`
-
-### System Installation
-
-**macOS**: copied automatically after every build. Turn this off with
-`-DPLUGIN_COPY_AFTER_BUILD=OFF`, though the AU pluginval test then skips.
-- **VST3**: `~/Library/Audio/Plug-Ins/VST3/JuceStarter.vst3`
-- **AU**: `~/Library/Audio/Plug-Ins/Components/JuceStarter.component`
-
-**Windows**: installed on demand with the `install-windows` preset (see [Commands](#commands)),
-because the VST3 folder needs administrator rights.
-- **VST3**: `C:\Program Files\Common Files\VST3\JuceStarter.vst3`
-
-
-## Customization
-
-Edit `CMakeLists.txt` to customize:
-
-```cmake
-project(JuceStarter)  # Change project name; also names the web demo folder
-
-juce_add_plugin(${PROJECT_NAME}
-    COMPANY_NAME MyCompanyName            # Your company name
-    PLUGIN_MANUFACTURER_CODE Mycn         # 4-char manufacturer ID
-    PLUGIN_CODE Plgn                      # 4-char unique plugin ID
-    VERSION 0.0.1                         # Version number
-    FORMATS VST3 AU Standalone            # Plugin formats to build
-    # ... other options
-)
+```bash
+cmake --preset xcode
+open build-xcode/Meter.xcodeproj
 ```
+
+### 2. Configure Debugging
+
+1. Select your plugin target from the scheme dropdown
+2. Go to **Product → Scheme → Edit Scheme**
+3. Click **Run** on the left sidebar
+4. Under **Executable**, choose **Other** and navigate to executable.
+
+### 3. Build and Run
+
+1. Press **Cmd+B** to build the plugin
+2. Press **Cmd+R** to run with AudioPluginHost
+3. Load your plugin in AudioPluginHost

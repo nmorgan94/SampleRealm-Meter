@@ -5,7 +5,7 @@
 
 //==============================================================================
 /**
- * The strip along the top of the editor: the title, the preset bar, the menu and a meter.
+ * The strip along the top of the editor: the title, the preset bar, the menu and the plugin's own controls.
  * Mirrored by webui/src/HeaderBar.tsx.
  */
 class HeaderBar : public juce::Component
@@ -21,20 +21,20 @@ public:
     struct Layout
     {
         int height;
-        int edge;           // left of the title, right of the meter
+        int edge;           // left of the title, right of the controls
         int titleWidth;     // a longer title is squeezed to fit
         float titleHeight;
         int gap;            // either side of the preset bar and menu
         int controlsHeight;
-        int meterWidth;
-        int meterInset;     // above and below the meter
+        int trailingWidth;  // the plugin's controls, at the right
+        int trailingInset;  // above and below them
     };
 
     static constexpr float minimumTitleScale = 0.7f;
     static juce::Font titleFont (const Layout&);
 
     HeaderBar (const juce::String& title, const Layout&, PresetManager&, PromptOverlay&,
-               std::function<void()> showManual, const juce::String& aboutText, juce::Component& meter);
+               std::function<void()> showManual, const juce::String& aboutText, juce::Component& trailingControls);
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -48,7 +48,7 @@ private:
     PresetActions presetActions;
     PresetBar presetBar;
     juce::TextButton menuButton { "..." };
-    juce::Component& meter;
+    juce::Component& trailing;
 
     void showMenu();
 

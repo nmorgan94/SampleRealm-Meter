@@ -1,6 +1,7 @@
 // The C++ side of these names is Source/webview/WebViewEditor.cpp
 import { getNativeFunction, getSliderState } from '@juce-framework/webview';
-import { listenerSet, paramLookup, type Level, type PluginBackend, type PresetBackend, type PresetEntry, type PresetStatus, type UiInfo } from '../backend.ts';
+import { listenerSet, paramLookup, type PluginBackend, type PresetBackend, type PresetEntry, type PresetStatus, type UiInfo } from '../backend.ts';
+import { decodeFrame } from '../meter/frame.ts';
 import { toProportion } from '../params.ts';
 
 // JUCE's type lists only its own initialisation data
@@ -61,9 +62,10 @@ export function pluginBackend(): PluginBackend {
       const handle = state.valueChangedEvent.addListener(() => listener(state.getScaledValue()));
       return () => state.valueChangedEvent.removeListener(handle);
     },
-    onLevel: (listener) => {
-      const handle = window.__JUCE__.backend.addEventListener('level', (payload) => listener(payload as Level));
+    onFrame: (listener) => {
+      const handle = window.__JUCE__.backend.addEventListener('frame', (payload) => listener(decodeFrame(payload as string)));
       return () => window.__JUCE__.backend.removeEventListener(handle);
     },
+    resetMeters: () => void getNativeFunction('meterReset')(),
   };
 }

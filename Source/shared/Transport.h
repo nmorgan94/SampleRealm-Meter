@@ -9,6 +9,7 @@ struct Transport
     double bpm = 174.0;
     bool playing = false;
     double ppq = 0.0; // the position in beats
+    bool available = false; // false where there's no host transport, as in the Standalone
 
     static Transport from (juce::AudioPlayHead* playHead)
     {
@@ -19,6 +20,7 @@ struct Transport
 
         if (const auto position = playHead->getPosition())
         {
+            transport.available = true;
             transport.bpm = position->getBpm().orFallback (transport.bpm);
             transport.playing = position->getIsPlaying();
             transport.ppq = position->getPpqPosition().orFallback (transport.ppq);

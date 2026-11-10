@@ -17,7 +17,9 @@ namespace
             case ParameterSpecs::Kind::choice:
                 return std::make_unique<juce::AudioParameterChoice> (
                     id, spec.name, juce::StringArray (spec.choices.data(), static_cast<int> (spec.choices.size())),
-                    juce::roundToInt (spec.defaultValue));
+                    juce::roundToInt (spec.defaultValue),
+                    // How the meter looks isn't something to automate
+                    juce::AudioParameterChoiceAttributes().withAutomatable (false));
 
             case ParameterSpecs::Kind::real:
                 break;

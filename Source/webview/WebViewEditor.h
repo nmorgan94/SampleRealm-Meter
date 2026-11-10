@@ -27,6 +27,9 @@ private:
     std::vector<std::unique_ptr<juce::WebSliderParameterAttachment>> attachments;
 
     juce::uint32 lastPresetChange = 0;
+    double lastFrameTime = 0.0;
+    MeterFrame::Data lastFrameSent {};
+    int framesUnsent = 0;
 
     juce::MemoryInputStream uiZipStream;
     juce::ZipFile uiZip { uiZipStream };

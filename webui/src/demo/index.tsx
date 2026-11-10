@@ -69,6 +69,10 @@ function useScale() {
   return { ref, scale };
 }
 
+// How long the engine keeps running after Pause, so the meter falls away rather than freezing. The last to go
+// are the short-term loudness, 3 s and a block, and the spectrum's 78 dB at 24 dB a second, 3.25 s
+const SETTLE_MS = 3500;
+
 // The loop runs through the engine, so Pause also lets the meter fall
 function usePlayer(audio: Audio | null, backend: WorkletBackend | undefined) {
   const [playing, setPlaying] = useState(false);
@@ -76,12 +80,32 @@ function usePlayer(audio: Audio | null, backend: WorkletBackend | undefined) {
   // Seconds played, counting every time round the loop, as a host's position does
   const offset = useRef(0);
   const startedAt = useRef(0);
+  const settling = useRef<number>();
+
+  useEffect(() => () => clearTimeout(settling.current), []);
+
+  // Runs the engine for long enough to settle, then stops it
+  const settle = useCallback(() => {
+    if (!audio) return;
+    clearTimeout(settling.current);
+    void audio.context.resume();
+    settling.current = window.setTimeout(() => void audio.context.suspend(), SETTLE_MS);
+  }, [audio]);
+
+  // A reset while paused needs the engine running to make it and show it
+  useEffect(() => {
+    if (!backend) return;
+    return backend.onReset(() => {
+      if (!source.current) settle();
+    });
+  }, [backend, settle]);
 
   const play = useCallback(() => {
     if (!audio || !backend || source.current) return;
     const { context, node, loop } = audio;
     // Before resuming, so the engine has it for the first block
     backend.setTransport(loopTransport(true, offset.current));
+    clearTimeout(settling.current);
     context.resume();
     const next = new AudioBufferSourceNode(context, { buffer: loop, loop: true });
     next.connect(node);
@@ -97,10 +121,10 @@ function usePlayer(audio: Audio | null, backend: WorkletBackend | undefined) {
     source.current.stop();
     source.current.disconnect();
     source.current = null;
-    audio.context.suspend();
+    settle();
     backend.setTransport(loopTransport(false, offset.current));
     setPlaying(false);
-  }, [audio, backend]);
+  }, [audio, backend, settle]);
 
   return { playing, toggle: playing ? pause : play };
 }

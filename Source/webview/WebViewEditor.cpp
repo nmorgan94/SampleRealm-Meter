@@ -1,10 +1,10 @@
 // The page side of these names is webui/src/plugin/pluginBackend.ts
 #include "WebViewEditor.h"
-#include "../PluginEditor.h"
+#include "../shared/EditorSize.h"
 #include "../shared/ParameterSpecs.h"
 #include "../shared/UiInfoJson.h"
 #include "../ui/About.h"
-#include "../ui/LevelMeter.h"
+#include "../ui/meter/MeterLook.h"
 #include <WebUIData.h>
 
 #if JUCE_MAC
@@ -13,8 +13,10 @@
 
 namespace
 {
-    const auto background = juce::LookAndFeel_V4::getDarkColourScheme()
-                                .getUIColour (juce::LookAndFeel_V4::ColourScheme::UIColour::windowBackground);
+    // The first theme's, until the page draws its own
+    const juce::Colour background = MeterTheme::of (0).background;
+
+    constexpr int framesPerSecond = 60;
 
     const char* mimeTypeFor (const juce::String& fileName)
     {
@@ -100,14 +102,21 @@ WebViewEditor::WebViewEditor (AudioPluginAudioProcessor& p)
         attachments.push_back (std::make_unique<juce::WebSliderParameterAttachment> (
             *apvts.getParameter (ParameterSpecs::all[i]->id), *relays[i], nullptr));
 
-    // Drop anything played while no meter was showing
-    processorRef.getOutputMeter().reset();
+    // Drop anything played while no editor was showing
+    processorRef.getMeterEngine().discardPending();
 
     addAndMakeVisible (*browser);
     browser->goToURL (juce::WebBrowserComponent::getResourceProviderRoot());
 
-    setSize (AudioPluginAudioProcessorEditor::width, AudioPluginAudioProcessorEditor::height);
-    startTimerHz (LevelMeter::Ballistics::updateHz);
+    // Read first: setting the limits resizes the editor, which stores its size
+    const auto size = processorRef.getEditorSize();
+
+    setResizable (true, true);
+    setResizeLimits (EditorSize::minWidth, EditorSize::minHeight, EditorSize::maxWidth, EditorSize::maxHeight);
+    setSize (size.x, size.y);
+
+    lastFrameTime = juce::Time::getMillisecondCounterHiRes();
+    startTimerHz (framesPerSecond);
 }
 
 juce::WebBrowserComponent::Options WebViewEditor::createOptions()
@@ -145,6 +154,11 @@ juce::WebBrowserComponent::Options WebViewEditor::withPresetFunctions (const juc
     };
 
     return options
+        .withNativeFunction ("meterReset", [this] (const Args&, Completion complete)
+        {
+            processorRef.getMeterEngine().requestReset();
+            complete ({});
+        })
         .withNativeFunction ("presetStatus", [&presets] (const Args&, Completion complete)
         {
             complete (presetStatus (presets));
@@ -224,16 +238,19 @@ std::optional<juce::WebBrowserComponent::Resource> WebViewEditor::getResource (c
 
 void WebViewEditor::timerCallback()
 {
-    auto& meter = processorRef.getOutputMeter();
+    const auto now = juce::Time::getMillisecondCounterHiRes();
+    const auto& frame = processorRef.getMeterEngine().updateFrame ((now - std::exchange (lastFrameTime, now)) / 1000.0);
 
-    juce::Array<juce::var> peaks;
+    // A stopped or silent meter soon shows the same frame every time. It still goes twice a second,
+    // for a page that has only just loaded
+    if (frame != lastFrameSent || ++framesUnsent >= framesPerSecond / 2)
+    {
+        lastFrameSent = frame;
+        framesUnsent = 0;
 
-    for (int channel = 0; channel < meter.getNumChannels(); ++channel)
-        peaks.add (meter.readAndReset (channel));
-
-    auto level = std::make_unique<juce::DynamicObject>();
-    level->setProperty ("peaks", peaks);
-    browser->emitEventIfBrowserIsVisible ("level", juce::var (level.release()));
+        // As its bytes rather than as hundreds of numbers in JSON
+        browser->emitEventIfBrowserIsVisible ("frame", juce::Base64::toBase64 (frame.data(), frame.size() * sizeof (float)));
+    }
 
     auto& presets = processorRef.getPresetManager();
 
@@ -251,5 +268,6 @@ void WebViewEditor::paint (juce::Graphics& g)
 
 void WebViewEditor::resized()
 {
+    processorRef.setEditorSize (getWidth(), getHeight());
     browser->setBounds (getLocalBounds());
 }

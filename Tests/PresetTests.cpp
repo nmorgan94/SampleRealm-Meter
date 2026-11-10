@@ -23,7 +23,7 @@ namespace
             return config;
         }() };
 
-        float gain()   { return getParameter (processor, Parameters::masterGainId); }
+        float theme()   { return getParameter (processor, Parameters::themeId); }
     };
 
     juce::StringArray namesOf (const juce::Array<PresetManager::Preset>& list)
@@ -37,7 +37,7 @@ namespace
     }
 
     // The same order as webui/test/demo/presetState.test.ts
-    const juce::StringArray factoryNames { "Boost +3", "Boost +6", "Cut -6", "Cut -12", "Cut -24" };
+    const juce::StringArray factoryNames { "Ember Pulse", "Ice Subtle", "Phosphor Calm", "Ember Loudness", "Phosphor Scope", "Ultraviolet Spectrum" };
 }
 
 //==============================================================================
@@ -50,7 +50,7 @@ TEST_CASE_METHOD (PresetFixture, "Factory presets are listed by category, then n
     {
         CAPTURE (preset.name);
         CHECK (preset.isFactory);
-        CHECK (preset.name.startsWith (preset.category));
+        CHECK ((preset.category == "Dashboard" || preset.category == "Focus"));
     }
 }
 
@@ -58,30 +58,31 @@ TEST_CASE_METHOD (PresetFixture, "A loaded preset sets its values and shows its 
 {
     CHECK (presets.getCurrent().name == "Init");
 
-    REQUIRE (presets.loadPreset (presets.find ("Cut -12", true).value()));
+    REQUIRE (presets.loadPreset (presets.find ("Ultraviolet Spectrum", true).value()));
 
-    CHECK_THAT (gain(), WithinAbs (-12.0, 1.0e-4));
-    CHECK (presets.getCurrent().name == "Cut -12");
-    CHECK (presets.getCurrent().category == "Cut");
+    CHECK_THAT (theme(), WithinAbs (3.0, 1.0e-4));
+    CHECK_THAT (getParameter (processor, Parameters::viewId), WithinAbs (1.0, 1.0e-4));
+    CHECK (presets.getCurrent().name == "Ultraviolet Spectrum");
+    CHECK (presets.getCurrent().category == "Focus");
     CHECK (presets.getCurrent().isFactory);
     CHECK_FALSE (presets.isModified());
 }
 
 TEST_CASE_METHOD (PresetFixture, "Moving a parameter marks the preset modified until the next load", "[presets]")
 {
-    REQUIRE (presets.loadPreset (presets.find ("Boost +3", true).value()));
+    REQUIRE (presets.loadPreset (presets.find ("Ember Pulse", true).value()));
 
-    setParameter (processor, Parameters::masterGainId, -1.0f);
+    setParameter (processor, Parameters::themeId, 3.0f);
     CHECK (presets.isModified());
 
-    REQUIRE (presets.loadPreset (presets.find ("Boost +3", true).value()));
+    REQUIRE (presets.loadPreset (presets.find ("Ember Pulse", true).value()));
     CHECK_FALSE (presets.isModified());
-    CHECK_THAT (gain(), WithinAbs (3.0, 1.0e-4));
+    CHECK_THAT (theme(), WithinAbs (1.0, 1.0e-4));
 }
 
 TEST_CASE_METHOD (PresetFixture, "Changing state outside the parameters marks the preset modified", "[presets]")
 {
-    REQUIRE (presets.loadPreset (presets.find ("Boost +3", true).value()));
+    REQUIRE (presets.loadPreset (presets.find ("Ember Pulse", true).value()));
 
     processor.updateHostDisplay (juce::AudioProcessor::ChangeDetails{}.withProgramChanged (true));
     CHECK_FALSE (presets.isModified());
@@ -92,12 +93,12 @@ TEST_CASE_METHOD (PresetFixture, "Changing state outside the parameters marks th
 
 TEST_CASE_METHOD (PresetFixture, "Init restores the defaults", "[presets]")
 {
-    REQUIRE (presets.loadPreset (presets.find ("Boost +6", true).value()));
-    setParameter (processor, Parameters::masterGainId, 4.0f);
+    REQUIRE (presets.loadPreset (presets.find ("Ice Subtle", true).value()));
+    setParameter (processor, Parameters::themeId, 2.0f);
 
     presets.loadInit();
 
-    CHECK_THAT (gain(), WithinAbs (ParameterSpecs::masterGain.defaultValue, 1.0e-4));
+    CHECK_THAT (theme(), WithinAbs (ParameterSpecs::theme.defaultValue, 1.0e-4));
     CHECK (presets.getCurrent().name == "Init");
     CHECK_FALSE (presets.isModified());
 }
@@ -116,15 +117,15 @@ TEST_CASE_METHOD (PresetFixture, "Next and previous wrap, and start from either 
     presets.loadInit();
     REQUIRE (presets.loadPrevious());
     CHECK (presets.getCurrent().name == factoryNames[factoryNames.size() - 1]);
-    CHECK_THAT (gain(), WithinAbs (-24.0, 1.0e-4));
+    CHECK_THAT (theme(), WithinAbs (3.0, 1.0e-4));
 }
 
 TEST_CASE_METHOD (PresetFixture, "User presets save, rename and delete in their folder", "[presets]")
 {
-    setParameter (processor, Parameters::masterGainId, -3.0f);
+    setParameter (processor, Parameters::themeId, 2.0f);
 
-    REQUIRE (presets.saveUserPreset ("Mine", "Cut").wasOk());
-    const auto mine = userDirectory.getChildFile ("Mine.srstarter");
+    REQUIRE (presets.saveUserPreset ("Mine", "Focus").wasOk());
+    const auto mine = userDirectory.getChildFile ("Mine.srmeter");
     CHECK (mine.existsAsFile());
     CHECK (presets.getCurrent().name == "Mine");
     CHECK_FALSE (presets.getCurrent().isFactory);
@@ -135,11 +136,11 @@ TEST_CASE_METHOD (PresetFixture, "User presets save, rename and delete in their 
 
     presets.loadInit();
     REQUIRE (presets.loadPreset (presets.getPresets().getLast()));
-    CHECK_THAT (gain(), WithinAbs (-3.0, 1.0e-4));
+    CHECK_THAT (theme(), WithinAbs (2.0, 1.0e-4));
     CHECK (presets.getCurrent().name == "Mine");
 
     REQUIRE (presets.renameUserPreset (presets.getPresets().getLast(), "Yours").wasOk());
-    const auto yours = userDirectory.getChildFile ("Yours.srstarter");
+    const auto yours = userDirectory.getChildFile ("Yours.srmeter");
     CHECK_FALSE (mine.exists());
     CHECK (yours.existsAsFile());
     CHECK (presets.getCurrent().name == "Yours");
@@ -153,13 +154,13 @@ TEST_CASE_METHOD (PresetFixture, "User presets save, rename and delete in their 
 
 TEST_CASE_METHOD (PresetFixture, "User presets can't take a factory name", "[presets]")
 {
-    CHECK (presets.saveUserPreset ("boost +3", {}).failed());
+    CHECK (presets.saveUserPreset ("ember pulse", {}).failed());
     CHECK (presets.saveUserPreset ("   ", {}).failed());
-    CHECK_FALSE (userDirectory.getChildFile ("boost +3.srstarter").exists());
+    CHECK_FALSE (userDirectory.getChildFile ("ember pulse.srmeter").exists());
 
     REQUIRE (presets.saveUserPreset ("Mine", {}).wasOk());
-    CHECK (presets.renameUserPreset (presets.getUserPresets().getFirst(), "Cut -6").failed());
-    CHECK (userDirectory.getChildFile ("Mine.srstarter").existsAsFile());
+    CHECK (presets.renameUserPreset (presets.getUserPresets().getFirst(), "Phosphor Calm").failed());
+    CHECK (userDirectory.getChildFile ("Mine.srmeter").existsAsFile());
 }
 
 TEST_CASE_METHOD (PresetFixture, "Next and previous skip a user preset deleted outside the plugin", "[presets]")
@@ -168,7 +169,7 @@ TEST_CASE_METHOD (PresetFixture, "Next and previous skip a user preset deleted o
     REQUIRE (presets.saveUserPreset ("B", {}).wasOk());
     REQUIRE (presets.loadPreset (presets.find ("A", false).value()));
 
-    REQUIRE (userDirectory.getChildFile ("B.srstarter").deleteFile());
+    REQUIRE (userDirectory.getChildFile ("B.srmeter").deleteFile());
 
     REQUIRE (presets.loadNext());
     CHECK (presets.getCurrent().name == factoryNames[0]);
@@ -177,7 +178,7 @@ TEST_CASE_METHOD (PresetFixture, "Next and previous skip a user preset deleted o
 TEST_CASE_METHOD (PresetFixture, "Next and previous step past a preset that won't load", "[presets]")
 {
     REQUIRE (presets.saveUserPreset ("A", {}).wasOk());
-    REQUIRE (userDirectory.getChildFile ("Broken.srstarter").replaceWithText ("not a preset"));
+    REQUIRE (userDirectory.getChildFile ("Broken.srmeter").replaceWithText ("not a preset"));
 
     REQUIRE (presets.loadNext());
     CHECK (presets.getCurrent().name == factoryNames[0]);
@@ -194,7 +195,7 @@ TEST_CASE_METHOD (PresetFixture, "Choosing a preset that won't load says so, and
     PresetActions actions { presets, prompt };
 
     REQUIRE (presets.saveUserPreset ("A", {}).wasOk());
-    REQUIRE (userDirectory.getChildFile ("Broken.srstarter").replaceWithText ("not a preset"));
+    REQUIRE (userDirectory.getChildFile ("Broken.srmeter").replaceWithText ("not a preset"));
     presets.refreshUserPresets();
 
     actions.load (presets.find ("A", false).value());
@@ -214,7 +215,7 @@ TEST_CASE_METHOD (PresetFixture, "Rescanning moves the change counter only when 
     CHECK (presets.getChangeCounter() == before);
 
     REQUIRE (userDirectory.createDirectory().wasOk());
-    REQUIRE (userDirectory.getChildFile ("Mine.srstarter").replaceWithText ("<PRESET/>"));
+    REQUIRE (userDirectory.getChildFile ("Mine.srmeter").replaceWithText ("<PRESET/>"));
     presets.refreshUserPresets();
     CHECK (presets.getChangeCounter() != before);
 }
@@ -223,21 +224,21 @@ TEST_CASE_METHOD (PresetFixture, "Presets are found by name and kind", "[presets
 {
     REQUIRE (presets.saveUserPreset ("Mine", {}).wasOk());
 
-    CHECK (presets.find ("Cut -6", true).has_value());
-    CHECK (presets.find ("Mine", false)->file == userDirectory.getChildFile ("Mine.srstarter"));
-    CHECK_FALSE (presets.find ("Cut -6", false).has_value());
+    CHECK (presets.find ("Phosphor Calm", true).has_value());
+    CHECK (presets.find ("Mine", false)->file == userDirectory.getChildFile ("Mine.srmeter"));
+    CHECK_FALSE (presets.find ("Phosphor Calm", false).has_value());
     CHECK_FALSE (presets.find ("Mine", true).has_value());
 }
 
 TEST_CASE_METHOD (PresetFixture, "State from before presets existed shows Init, modified", "[presets][state]")
 {
-    REQUIRE (presets.loadPreset (presets.find ("Boost +6", true).value()));
+    REQUIRE (presets.loadPreset (presets.find ("Ice Subtle", true).value()));
 
     juce::ValueTree state (processor.getAPVTS().state.getType());
-    state.appendChild ({ "PARAM", { { "id", Parameters::masterGainId.getParamID() }, { "value", -20.0f } } }, nullptr);
+    state.appendChild ({ "PARAM", { { "id", Parameters::themeId.getParamID() }, { "value", 2.0f } } }, nullptr);
     presets.restoreState (state);
 
-    CHECK_THAT (gain(), WithinAbs (-20.0, 1.0e-4));
+    CHECK_THAT (theme(), WithinAbs (2.0, 1.0e-4));
     CHECK (presets.getCurrent().name == "Init");
     CHECK (presets.isModified());
 }
@@ -245,8 +246,8 @@ TEST_CASE_METHOD (PresetFixture, "State from before presets existed shows Init, 
 TEST_CASE_METHOD (ProcessorFixture, "A reopened session shows the same preset", "[presets][state]")
 {
     auto& presets = processor.getPresetManager();
-    REQUIRE (presets.loadPreset (presets.find ("Boost +6", true).value()));
-    setParameter (processor, Parameters::masterGainId, 2.0f);
+    REQUIRE (presets.loadPreset (presets.find ("Ice Subtle", true).value()));
+    setParameter (processor, Parameters::themeId, 2.0f);
 
     juce::MemoryBlock state;
     processor.getStateInformation (state);
@@ -255,11 +256,11 @@ TEST_CASE_METHOD (ProcessorFixture, "A reopened session shows the same preset", 
     restored.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
 
     const auto current = restored.getPresetManager().getCurrent();
-    CHECK (current.name == "Boost +6");
-    CHECK (current.category == "Boost");
+    CHECK (current.name == "Ice Subtle");
+    CHECK (current.category == "Dashboard");
     CHECK (current.isFactory);
     CHECK (restored.getPresetManager().isModified());
-    CHECK_THAT (getParameter (restored, Parameters::masterGainId), WithinAbs (2.0, 1.0e-4));
+    CHECK_THAT (getParameter (restored, Parameters::themeId), WithinAbs (2.0, 1.0e-4));
 
     // Kept by the preset manager, not left on the parameters
     CHECK_FALSE (restored.getAPVTS().state.hasProperty ("presetName"));

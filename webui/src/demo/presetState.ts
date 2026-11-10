@@ -1,7 +1,7 @@
 // What this plugin's presets hold, for localPresets.ts
 import { xmlTags } from './localPresets.ts';
 
-export const STORAGE_KEY = 'juce-starter-presets';
+export const STORAGE_KEY = 'samplerealm-meter-presets';
 
 export interface PresetState {
   values: Record<string, number>;

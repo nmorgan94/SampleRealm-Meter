@@ -33,10 +33,19 @@ namespace ParameterSpecs
                  static_cast<float> (defaultValue), 1.0f, 1.0f, "", choices };
     }
 
-    inline constexpr Spec masterGain { "masterGain", "Master Gain", Kind::real, -60.0f, 6.0f, 0.0f, 0.1f, 1.0f, "dB" };
+    // The palettes are Source/shared/Themes.h, in this order
+    inline constexpr std::array<const char*, 5> themeNames { "Neon", "Ember", "Phosphor", "Ultraviolet", "Ice" };
+    // How much the display moves with the beat
+    inline constexpr std::array<const char*, 3> reactivityNames { "Off", "Subtle", "Full" };
+    // The dashboard, or one of its panels filling the editor
+    inline constexpr std::array<const char*, 4> viewNames { "Dashboard", "Spectrum", "Stereo", "Loudness" };
+
+    inline constexpr Spec theme = choice ("theme", "Theme", themeNames, 0);
+    inline constexpr Spec reactivity = choice ("reactivity", "Reactivity", reactivityNames, 2);
+    inline constexpr Spec view = choice ("view", "View", viewNames, 0);
 
     // The host's parameter order
-    inline constexpr std::array all { &masterGain };
+    inline constexpr std::array all { &theme, &reactivity, &view };
 
     static_assert (std::ranges::all_of (all, [] (const Spec* spec)
     {

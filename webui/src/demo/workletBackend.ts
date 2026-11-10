@@ -1,4 +1,4 @@
-import { listenerSet, paramLookup, type Level, type PluginBackend, type UiInfo } from '../backend.ts';
+import { listenerSet, paramLookup, type PluginBackend, type UiInfo } from '../backend.ts';
 import { localPresets, type PresetStorage } from './localPresets.ts';
 import { INIT_STATE, parseState, STORAGE_KEY, type PresetState } from './presetState.ts';
 
@@ -36,11 +36,14 @@ export type WorkletBackend = PluginBackend & {
   attach(port: EnginePort): void;
   // The page plays the host
   setTransport(transport: Transport): void;
+  // Called on each reset, which the engine only makes while it's running
+  onReset(listener: () => void): () => void;
 };
 
 export function workletBackend(info: UiInfo, factoryPresets: string[] = [], storage?: PresetStorage): WorkletBackend {
   const entry = paramLookup(new Map(info.params.map((param, index) => [param.id, { param, index, value: param.defaultValue, listeners: listenerSet<[number]>() }])));
-  const levelListeners = listenerSet<[Level]>();
+  const frameListeners = listenerSet<[Float32Array]>();
+  const resetListeners = listenerSet<[]>();
   let port: EnginePort | null = null;
   // Sent once the worklet attaches
   let pending: unknown[] = [];
@@ -81,12 +84,17 @@ export function workletBackend(info: UiInfo, factoryPresets: string[] = [], stor
     beginGesture: () => {},
     endGesture: () => {},
     subscribe: (id, listener) => entry(id).listeners.add(listener),
-    onLevel: levelListeners.add,
+    onFrame: frameListeners.add,
+    resetMeters: () => {
+      post({ type: 'reset' });
+      resetListeners.notify();
+    },
+    onReset: resetListeners.add,
     setTransport: (transport) => post({ type: 'transport', ...transport }),
     attach: (enginePort) => {
       port = enginePort;
       port.onmessage = ({ data }) => {
-        if (data.type === 'level') levelListeners.notify({ peaks: data.peaks });
+        if (data.type === 'frame') frameListeners.notify(data.frame);
       };
       pending.forEach((message) => enginePort.postMessage(message));
       pending = [];

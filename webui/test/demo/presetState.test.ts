@@ -9,11 +9,11 @@ import { info } from '../engine.ts';
 
 const presetFolder = resolve(import.meta.dirname, '../../../Assets/Presets');
 const factory = readdirSync(presetFolder)
-  .filter((file) => file.endsWith('.srstarter'))
+  .filter((file) => file.endsWith('.srmeter'))
   .map((file) => readFileSync(resolve(presetFolder, file), 'utf8'));
 
 // The same order as Tests/PresetTests.cpp
-const FACTORY_NAMES = ['Boost +3', 'Boost +6', 'Cut -6', 'Cut -12', 'Cut -24'];
+const FACTORY_NAMES = ['Ember Pulse', 'Ice Subtle', 'Phosphor Calm', 'Ember Loudness', 'Phosphor Scope', 'Ultraviolet Spectrum'];
 
 const storageWith = (stored: unknown) => {
   const items = new Map([[STORAGE_KEY, JSON.stringify(stored)]]);
@@ -25,18 +25,21 @@ test('factory presets load into the engine in the plugin\'s order', async () => 
   const list = await presets.list();
   assert.deepEqual(list.map((preset) => preset.name), FACTORY_NAMES);
 
-  await presets.load(list.find((preset) => preset.name === 'Cut -12')!);
-  assert.equal(getValue('masterGain'), -12);
+  await presets.load(list.find((preset) => preset.name === 'Ultraviolet Spectrum')!);
+  assert.equal(getValue('theme'), 3);
+  assert.equal(getValue('reactivity'), 2);
+  assert.equal(getValue('view'), 1);
 
   await presets.loadInit();
-  assert.equal(getValue('masterGain'), param('masterGain').defaultValue);
+  assert.equal(getValue('theme'), param('theme').defaultValue);
+  assert.equal(getValue('view'), param('view').defaultValue);
 });
 
 test('a stored preset loads past ids this engine doesn\'t have', async () => {
-  const { presets, getValue } = workletBackend(info, factory, storageWith([{ name: 'Other', category: '', values: { cutoff: 1, masterGain: -3 } }]));
+  const { presets, getValue } = workletBackend(info, factory, storageWith([{ name: 'Other', category: '', values: { cutoff: 1, theme: 2 } }]));
 
   await presets.load({ name: 'Other', category: '', isFactory: false });
 
-  assert.equal(getValue('masterGain'), -3);
+  assert.equal(getValue('theme'), 2);
   assert.equal(presets.status().current.name, 'Other');
 });

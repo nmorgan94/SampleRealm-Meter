@@ -2,12 +2,6 @@ import type { ParamInfo } from './backend.ts';
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
-export const fromProportion = (param: ParamInfo, proportion: number) => {
-  const p = clamp01(proportion);
-  const value = param.min + (param.max - param.min) * (param.skew === 1 ? p : Math.pow(p, 1 / param.skew));
-  return snap(param, value);
-};
-
 export const toProportion = (param: ParamInfo, value: number) => {
   const p = clamp01((value - param.min) / (param.max - param.min));
   return param.skew === 1 ? p : Math.pow(p, param.skew);
@@ -39,10 +33,4 @@ export const formatValue = (param: ParamInfo, value: number) => {
   if (param.kind === 'integer') return `${Math.round(value)}`;
 
   return value.toFixed(decimalPlaces(param.step));
-};
-
-export const parseValue = (param: ParamInfo, text: string): number | null => {
-  const number = parseFloat(text);
-  if (Number.isNaN(number)) return null;
-  return snap(param, number);
 };

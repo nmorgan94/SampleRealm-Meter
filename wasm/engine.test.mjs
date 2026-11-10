@@ -49,43 +49,77 @@ test('the ui info carries the version, the commit, the build type and every para
   assert.match(info.commit, /^([0-9a-f]{7,}(-local)?|unknown)$/);
   assert.match(info.build, /^(Debug|Release)$/);
   assert.deepEqual(info.params, [
-    { id: 'masterGain', name: 'Master Gain', kind: 'real', min: -60, max: 6, defaultValue: 0, step: 0.1, skew: 1, unit: 'dB', choices: [] },
+    { id: 'theme', name: 'Theme', kind: 'choice', min: 0, max: 4, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Neon', 'Ember', 'Phosphor', 'Ultraviolet', 'Ice'] },
+    { id: 'reactivity', name: 'Reactivity', kind: 'choice', min: 0, max: 2, defaultValue: 2, step: 1, skew: 1, unit: '', choices: ['Off', 'Subtle', 'Full'] },
+    { id: 'view', name: 'View', kind: 'choice', min: 0, max: 3, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Dashboard', 'Spectrum', 'Stereo', 'Loudness'] },
   ]);
 });
 
-test('a stereo sine comes out with the gain applied to both channels', () => {
-  for (const [gainDb, gain] of [[0, 1], [-6, 0.501187], [6, 1.995262], [-60, 0]]) {
-    const e = engine();
-    e.set('masterGain', gainDb);
-    const input = [sine(0.1, 0.5), sine(0.1, 0.25, 220)];
+// The frame's scalars by name, read after a time
+const frameOf = (e, seconds = 0) => {
+  const { scalars } = readUiInfo(e).frame;
+  const frame = new Float32Array(e.memory.buffer, e.frame(seconds), e.frameSize());
+  return Object.fromEntries(scalars.map((name, i) => [name, frame[i]]));
+};
 
-    const output = e.processBlocks(input);
+const near = (actual, expected, tolerance, what) => assert.ok(Math.abs(actual - expected) <= tolerance, `${what}: ${actual} is not ${expected}`);
 
-    output.forEach((channel, i) => {
-      assert.ok(channel.every(Number.isFinite));
-      assert.ok(maxError(channel, input[i].map((s) => s * gain)) < 1e-4, `${gainDb} dB, channel ${i}`);
-    });
-  }
-});
-
-test('a mono layout processes only the first channel', () => {
-  const e = engine(1);
-  e.set('masterGain', -6);
-  e.view(0, blockSize).fill(0.5);
-  e.view(1, blockSize).fill(0.5);
-  e.render(blockSize);
-
-  assert.ok(Math.abs(e.view(0, blockSize)[0] - 0.5 * 0.501187) < 1e-4);
-  assert.equal(e.view(1, blockSize)[0], 0.5);
-  assert.equal(e.peak(1), 0);
-});
-
-test('the peak is the loudest output since the last read, after the gain', () => {
+test('the audio comes out exactly as it went in, whatever the parameters', () => {
   const e = engine();
-  e.set('masterGain', -6);
-  e.processBlocks([sine(0.05, 0.8), sine(0.05, 0.4)]);
+  e.set('theme', 3);
+  e.set('view', 2);
+  const input = [sine(0.1, 0.5), sine(0.1, 0.25, 220)];
 
-  assert.ok(Math.abs(e.peak(0) - 0.8 * 0.501187) < 1e-3, 'channel 0');
-  assert.ok(Math.abs(e.peak(1) - 0.4 * 0.501187) < 1e-3, 'channel 1');
-  assert.equal(e.peak(0), 0);
+  const output = e.processBlocks(input);
+
+  output.forEach((channel, i) => assert.equal(maxError(channel, input[i]), 0, `channel ${i}`));
+});
+
+test('a stereo 1 kHz sine at -23 dBFS reads -23 LUFS, and its level as true peak', () => {
+  const e = engine();
+  e.processBlocks([sine(10, 10 ** (-23 / 20), 1000), sine(10, 10 ** (-23 / 20), 1000)]);
+  const frame = frameOf(e, 0.016);
+
+  near(frame.momentary, -23, 0.1, 'momentary');
+  near(frame.shortTerm, -23, 0.1, 'short-term');
+  near(frame.integrated, -23, 0.1, 'integrated');
+  near(frame.maxTruePeak, -23, 0.1, 'true peak');
+  near(frame.correlation, 1, 1e-3, 'correlation');
+  assert.equal(frame.clipCount, 0);
+});
+
+test('a mono layout meters only the first channel', () => {
+  const e = engine(1);
+  e.processBlocks([sine(3, 0.5, 1000), sine(3, 1.5, 1000)]);
+  const frame = frameOf(e, 0.016);
+
+  near(frame.maxTruePeak, -6.02, 0.1, 'true peak');
+  near(frame.truePeakRight, frame.truePeakLeft, 0, 'the right peak');
+  assert.equal(frame.clipCount, 0);
+});
+
+test('starting the transport starts the integrated loudness again, and a reset starts everything again', () => {
+  const e = engine();
+  const loud = [sine(3, 1.5, 100), sine(3, 1.5, 100)];
+  const quiet = [sine(3, 0.1, 1000), sine(3, 0.1, 1000)];
+
+  // With no transport set, the engine always counts
+  e.processBlocks(loud);
+  assert.ok(frameOf(e).integrated > -5);
+  assert.equal(frameOf(e).clipCount, 1);
+
+  e.resetMeters();
+  e.processBlocks(quiet);
+  assert.equal(frameOf(e).clipCount, 0);
+  near(frameOf(e).maxTruePeak, -20, 0.1, 'true peak');
+  near(frameOf(e).integrated, -20, 0.1, 'integrated');
+
+  e.setTransport(120, false, 0);
+  e.processBlocks(quiet);
+  assert.equal(frameOf(e).integrating, 0);
+
+  e.setTransport(120, true, 4);
+  e.processBlocks(quiet);
+  near(frameOf(e).integrated, -20, 0.1, 'integrated');
+  assert.equal(frameOf(e).integrating, 1);
 });

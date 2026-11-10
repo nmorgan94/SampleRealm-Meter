@@ -5,16 +5,12 @@ export interface Rect {
   height: number;
 }
 
+export const right = (r: Rect) => r.left + r.width;
+export const bottom = (r: Rect) => r.top + r.height;
+export const contains = (r: Rect, x: number, y: number) => x >= r.left && x < right(r) && y >= r.top && y < bottom(r);
+
+// juce::Rectangle::reduced
+export const reduced = ({ left, top, width, height }: Rect, by: number): Rect => ({ left: left + by, top: top + by, width: width - 2 * by, height: height - 2 * by });
+
 // juce::Rectangle::withSizeKeepingCentre
 export const centred = (outer: number, inner: number) => Math.trunc((outer - inner) / 2);
-
-// Source/ui/LabeledSlider.h's layOutAboveLabel: the label right under a square control, the pair centred
-export function layOutAboveLabel(width: number, height: number): { control: Rect; label: Rect } {
-  const LABEL_HEIGHT = 24;
-  const size = Math.max(0, Math.min(width, height - LABEL_HEIGHT));
-  const top = centred(height, size + LABEL_HEIGHT);
-  return {
-    control: { left: centred(width, size), top, width: size, height: size },
-    label: { left: 0, top: top + size, width, height: LABEL_HEIGHT },
-  };
-}
