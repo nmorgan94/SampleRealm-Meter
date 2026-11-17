@@ -1,13 +1,16 @@
-import { readFileSync } from 'node:fs';
+import { readJson } from '@samplerealm/modules/demo/engine.ts';
+import { engineAt } from '@samplerealm/modules/testing/engine.ts';
 import { localEnginePath } from '../localEngine.ts';
-import { paramLookup } from '../src/backend.ts';
-import { readUiInfo, stubImports, type Engine } from '../src/demo/workletBackend.ts';
+import { paramLookup } from '@samplerealm/modules/backend.ts';
+import type { MeterInfo } from '../src/backend.ts';
 
-const instance = new WebAssembly.Instance(new WebAssembly.Module(readFileSync(localEnginePath())), stubImports());
+// Makes a fresh engine from the last wasm build
+export const engine = engineAt(localEnginePath());
 
-export const engine = instance.exports as Engine;
-engine._initialize?.();
+const first = engine();
 
-export const info = readUiInfo(engine);
+export const { info } = first;
+
+export const meter = readJson<MeterInfo>(first.engine, first.engine.meterInfo());
 
 export const param = paramLookup(new Map(info.params.map((p) => [p.id, p])));

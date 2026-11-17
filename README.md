@@ -85,8 +85,8 @@ On both, mono or stereo, and the input layout must match the output.
   - **Windows**: Visual Studio 2022 or later with the "Desktop development with C++" workload
 - Git
 
-JUCE is fetched automatically at configure time via CPM into `.cpm-cache/`, shared by every preset and by `wasm/` -
-there is no submodule to initialize. A build folder made before the cache needs its `_deps/juce-*` removed first.
+JUCE and SampleRealm-Modules are fetched automatically at configure time via CPM into `.cpm-cache/`, shared by every
+preset and by `wasm/` - there is no submodule to initialize. A build folder made before the cache needs its `_deps/juce-*` removed first.
 
 The web demo also needs Emscripten (`brew install emscripten`) and Node 24+.
 
@@ -134,7 +134,8 @@ at 44.1, 48 and 96 kHz, the true peak, the spectrum, the stereo field, the trans
 the editor's layout, views, themes and capture mode.
 
 Add a `.cpp` file to `Tests/` and reconfigure to pick it up. `Tests/TestHelpers.h` has helpers for
-setting parameters and processing buffers. Set `-DENABLE_UNIT_TESTS=OFF` to skip them entirely.
+setting parameters and processing buffers, on top of SampleRealm-Modules' `Tests/PluginTestHelpers.h`.
+The header, presets and overlays are tested there. Set `-DENABLE_UNIT_TESTS=OFF` to skip them entirely.
 
 Like pluginval, the tests are not part of a plain build: the `debug` workflow builds only the plugin.
 
@@ -203,7 +204,7 @@ The three parameters (theme, reactivity, view) only change the look, and hosts c
   `webui/public/demo/` as AAC (`.m4a`) so Safari can decode it, and decode it in `startAudio`.
 - The demo runs the same engine as the plugin, so its readings are the plugin's. It is a fixed 960 × 600, scaled to fit the page.
 - The `webview` build installs over the native one; run the `release` workflow to switch back.
-- Delete `wasm/patches/juce-wasm.patch` once JUCE fixes its wasm support.
+- The wasm build patches JUCE (`cmake/patches/juce-wasm.patch` in SampleRealm-Modules) until JUCE fixes its wasm support.
 
 ## Debugging in Xcode
 

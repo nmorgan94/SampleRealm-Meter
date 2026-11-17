@@ -1,103 +1,37 @@
-import { listenerSet, paramLookup, type PluginBackend, type UiInfo } from '../backend.ts';
-import { localPresets, type PresetStorage } from './localPresets.ts';
-import { INIT_STATE, parseState, STORAGE_KEY, type PresetState } from './presetState.ts';
+// The shared worklet backend, with the meter's info, frames and reset
+import { workletBackend, type WorkletBackend } from '@samplerealm/modules/demo/workletBackend.ts';
+import { listenerSet, type UiInfo } from '@samplerealm/modules/backend.ts';
+import type { MeterBackend, MeterInfo } from '../backend.ts';
 
-// WASI imports are never called
-export const stubImports = () => {
-  const stub = new Proxy({}, { get: () => () => 0 });
-  return new Proxy({}, { get: () => stub }) as WebAssembly.Imports;
-};
+// This plugin's, as a site's demos share its storage
+const STORAGE_KEY = 'samplerealm-meter-presets';
 
-export type Engine = Record<string, CallableFunction> & { memory: WebAssembly.Memory };
+// What wasm/Engine.cpp exports beside the shared ones
+export const FRAMES = { name: 'frame', size: 'frameSize', perSecond: 60 };
 
-export const readUiInfo = (engine: Engine) => {
-  const bytes = new Uint8Array(engine.memory.buffer, engine.uiInfo());
-  return JSON.parse(new TextDecoder().decode(bytes.subarray(0, bytes.indexOf(0)))) as UiInfo;
-};
+export type MeterWorkletBackend = WorkletBackend &
+  MeterBackend & {
+    // Called on each reset, which the engine only makes while it's running
+    onReset(listener: () => void): () => void;
+  };
 
-export async function loadEngine(url: string): Promise<{ wasm: ArrayBuffer; info: UiInfo }> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url}: ${response.status}`);
-
-  const wasm = await response.arrayBuffer();
-  const { instance } = await WebAssembly.instantiate(wasm, stubImports());
-  const engine = instance.exports as Engine;
-  engine._initialize?.();
-  return { wasm, info: readUiInfo(engine) };
-}
-
-// The node's port, so tests can stand in for it
-export type EnginePort = Pick<MessagePort, 'postMessage'> & { onmessage: ((e: MessageEvent) => void) | null };
-
-// Source/shared/Transport.h
-export type Transport = { bpm: number; playing: boolean; ppq: number };
-
-export type WorkletBackend = PluginBackend & {
-  attach(port: EnginePort): void;
-  // The page plays the host
-  setTransport(transport: Transport): void;
-  // Called on each reset, which the engine only makes while it's running
-  onReset(listener: () => void): () => void;
-};
-
-export function workletBackend(info: UiInfo, factoryPresets: string[] = [], storage?: PresetStorage): WorkletBackend {
-  const entry = paramLookup(new Map(info.params.map((param, index) => [param.id, { param, index, value: param.defaultValue, listeners: listenerSet<[number]>() }])));
+export function meterWorkletBackend(info: UiInfo, meter: MeterInfo, factoryPresets: string[] = []): MeterWorkletBackend {
+  const backend = workletBackend(info, { storageKey: STORAGE_KEY, factoryPresets });
   const frameListeners = listenerSet<[Float32Array]>();
   const resetListeners = listenerSet<[]>();
-  let port: EnginePort | null = null;
-  // Sent once the worklet attaches
-  let pending: unknown[] = [];
 
-  const post = (message: unknown) => {
-    if (port) port.postMessage(message);
-    else pending.push(message);
-  };
-
-  const apply = (id: string, value: number) => {
-    const found = entry(id);
-    post({ type: 'param', index: found.index, value });
-    found.value = value;
-    found.listeners.notify(value);
-  };
-
-  const presets = localPresets<PresetState>({
-    storageKey: STORAGE_KEY,
-    storage,
-    factory: factoryPresets,
-    parse: parseState,
-    init: INIT_STATE,
-    capture: () => ({ values: Object.fromEntries(info.params.map(({ id }) => [id, entry(id).value])) }),
-    // Ids this engine doesn't have are skipped, as the APVTS skips them
-    apply: ({ values }) => info.params.forEach(({ id, defaultValue }) => apply(id, values[id] ?? defaultValue)),
+  backend.onMessage((data) => {
+    if (data.type === 'frame') frameListeners.notify(data.frame as Float32Array);
   });
 
   return {
-    info,
-    running: 'Web demo',
-    presets,
-    param: (id) => entry(id).param,
-    getValue: (id) => entry(id).value,
-    setValue: (id, value) => {
-      apply(id, value);
-      presets.markModified();
-    },
-    beginGesture: () => {},
-    endGesture: () => {},
-    subscribe: (id, listener) => entry(id).listeners.add(listener),
+    ...backend,
+    meter,
     onFrame: frameListeners.add,
     resetMeters: () => {
-      post({ type: 'reset' });
+      backend.post({ type: 'call', name: 'resetMeters' });
       resetListeners.notify();
     },
     onReset: resetListeners.add,
-    setTransport: (transport) => post({ type: 'transport', ...transport }),
-    attach: (enginePort) => {
-      port = enginePort;
-      port.onmessage = ({ data }) => {
-        if (data.type === 'frame') frameListeners.notify(data.frame);
-      };
-      pending.forEach((message) => enginePort.postMessage(message));
-      pending = [];
-    },
   };
 }

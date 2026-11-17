@@ -1,5 +1,5 @@
 // Mirrors Source/ui/meter/DashboardLayout.h, with the same tests
-import { reduced, type Rect } from '../layout.ts';
+import { reduced, type Rect } from './rect.ts';
 
 export const PANELS = ['spectrum', 'stereo', 'loudness'] as const;
 export type Panel = (typeof PANELS)[number];

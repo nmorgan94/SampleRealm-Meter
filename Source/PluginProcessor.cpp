@@ -3,7 +3,7 @@
 #include <BinaryData.h>
 
 #if PLUGIN_WEBVIEW_EDITOR
- #include "webview/WebViewEditor.h"
+ #include "webview/MeterWebView.h"
 #endif
 
 //==============================================================================
@@ -170,7 +170,7 @@ bool AudioPluginAudioProcessor::hasEditor() const
 juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 {
    #if PLUGIN_WEBVIEW_EDITOR
-    return new WebViewEditor (*this);
+    return createMeterWebView (*this);
    #else
     return new AudioPluginAudioProcessorEditor (*this);
    #endif

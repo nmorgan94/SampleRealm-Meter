@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <editor/editor.h>
 #include "meter/MeterLook.h"
 
 //==============================================================================
@@ -10,7 +11,8 @@
  * Override LookAndFeel_V4 methods here to customise the appearance of your plugin.
  * See: https://docs.juce.com/master/classLookAndFeel__V4.html
  */
-class CustomLookAndFeel : public juce::LookAndFeel_V4
+class CustomLookAndFeel : public juce::LookAndFeel_V4,
+                          public EditorFonts
 {
 public:
     static constexpr float regularWeight = 400.0f;
@@ -26,6 +28,9 @@ public:
     juce::Font getLabelFont (juce::Label&) override;
     juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override;
     juce::Font getPopupMenuFont() override;
+
+    // The header's title, the manual and the prompt's text field
+    juce::Font getEditorFont (float height, bool bold) override;
 
     /** Recolours the header, the buttons, the menus and the overlays to go with the meter. */
     void setTheme (const MeterTheme&);

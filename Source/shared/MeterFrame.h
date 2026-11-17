@@ -6,7 +6,7 @@
 /**
  * What the meter shows at one moment, as one flat array of floats: the scalars, then the
  * spectrum's bands, its held peaks, then the goniometer's points as x, y pairs.
- * MeterEngine fills it; the editors only draw it. uiInfoJson() tells the web UI this layout.
+ * MeterEngine fills it; the editors only draw it. meterInfoJson() tells the web UI this layout.
  */
 namespace MeterFrame
 {

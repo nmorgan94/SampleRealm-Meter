@@ -1,8 +1,8 @@
 // Mirrors Source/ui/meter/Dashboard.cpp: the meter's three panels on one canvas. One can grow to fill the
 // dashboard while the others fade out
 import { useEffect, useRef } from 'react';
-import type { PluginBackend } from '../backend.ts';
-import { contains, type Rect } from '../layout.ts';
+import type { MeterBackend } from '../backend.ts';
+import { contains, type Rect } from './rect.ts';
 import { ease, expanding, PANELS, type Panel } from './dashboardLayout.ts';
 import { drawLoudness, drawPanel, drawSpectrum, drawStereo, hasRoom, stereoTrace, type Scene } from './draw.ts';
 import { frameReader } from './frame.ts';
@@ -18,7 +18,7 @@ const MAX_FRAME_SECONDS = 0.25;
 const TITLES: Record<Panel, string> = { spectrum: 'SPECTRUM', stereo: 'STEREO FIELD', loudness: 'LOUDNESS' };
 
 interface DashboardProps {
-  backend: PluginBackend;
+  backend: MeterBackend;
   look: Look;
   view: number;
   bounds: Rect;
@@ -57,8 +57,8 @@ export function Dashboard({ backend, look, view, bounds, onViewChosen }: Dashboa
     const ctx = element?.getContext('2d');
     if (!element || !ctx) return;
 
-    const reader = frameReader(backend.info.frame);
-    const { scales } = backend.info;
+    const reader = frameReader(backend.meter.frame);
+    const { scales } = backend.meter;
     const trace = stereoTrace(scales);
     let frame = reader.silent();
     let fresh = true;

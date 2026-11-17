@@ -1,5 +1,5 @@
 // Mirrors the layOut functions of Source/ui/meter's views and MeterPanel's bounds, with the same tests
-import { bottom, right, type Rect } from '../layout.ts';
+import { bottom, right, type Rect } from './rect.ts';
 
 // MeterPanel
 export const PANEL_INSET = 12;

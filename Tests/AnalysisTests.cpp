@@ -52,7 +52,8 @@ namespace
     };
 
     const Transport stopped { 120.0, false, 0.0, true };
-    const Transport playing { 120.0, true, 8.25, true };
+    const Transport playing { 120.0, true, 8.25, true, true };
+    const Transport playingWithNoPosition { 120.0, false, 0.0, true, true };
 }
 
 //==============================================================================
@@ -368,6 +369,14 @@ TEST_CASE_METHOD (EngineFixture, "With a host transport, the integrated loudness
     frame = play (quiet, playing);
     CHECK_THAT (frame[MeterFrame::integrated], WithinAbs (-23.0, 0.1));
     CHECK_THAT (frame[MeterFrame::maxTruePeak], WithinAbs (-23.0, 0.1));
+}
+
+TEST_CASE_METHOD (EngineFixture, "A host that plays without a beat position still counts", "[engine][transport]")
+{
+    const auto frame = play (makeTone (2, 5.0, 1000.0, dbToGain (-23.0f)), playingWithNoPosition);
+
+    CHECK_THAT (frame[MeterFrame::integrated], WithinAbs (-23.0, 0.1));
+    CHECK_THAT (frame[MeterFrame::integrating], WithinAbs (1.0, 0.0));
 }
 
 TEST_CASE_METHOD (EngineFixture, "A reset starts the integrated loudness, the held peaks and the clip count again", "[engine]")

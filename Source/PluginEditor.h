@@ -1,13 +1,10 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include "ui/About.h"
 #include "ui/CustomLookAndFeel.h"
-#include "ui/HeaderBar.h"
-#include "ui/Manual.h"
-#include "ui/PromptOverlay.h"
 #include "ui/meter/Dashboard.h"
 #include "ui/meter/MeterControls.h"
+#include <BinaryData.h>
 
 //==============================================================================
 class AudioPluginAudioProcessorEditor final : public juce::AudioProcessorEditor,
@@ -16,7 +13,7 @@ class AudioPluginAudioProcessorEditor final : public juce::AudioProcessorEditor,
 public:
     // As HEADER_LAYOUT in webui/src/Editor.tsx
     static constexpr HeaderBar::Layout headerLayout { .height = 44, .edge = 12, .titleWidth = 176, .titleHeight = 16.0f,
-                                                      .gap = 12, .controlsHeight = 24, .trailingWidth = MeterControls::width, .trailingInset = 10 };
+                                                      .gap = 12, .controlsHeight = 24, .meterWidth = MeterControls::width, .meterInset = 10 };
 
     // In capture mode, the strip along the bottom with the maker's name
     static constexpr int wordmarkHeight = 22;
@@ -52,7 +49,7 @@ private:
     MeterLook look;
 
     PromptOverlay prompt;
-    ManualOverlay manual;
+    ManualOverlay manual { juce::String::createStringFromData (BinaryData::Manual_md, BinaryData::Manual_mdSize) };
     MeterControls controls;
     HeaderBar header { "SampleRealm: METER", headerLayout, processorRef.getPresetManager(), prompt, [this] { manual.show(); },
                        About::text (processorRef), controls };

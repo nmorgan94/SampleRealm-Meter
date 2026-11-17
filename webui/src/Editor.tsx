@@ -1,17 +1,18 @@
 // Mirrors AudioPluginAudioProcessorEditor
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import type { PluginBackend } from './backend.ts';
-import { TextButton } from './controls.tsx';
-import { EditorRootContext } from './editorRoot.ts';
-import { juceHeight } from './fonts.ts';
-import { HeaderBar, type HeaderLayout } from './HeaderBar.tsx';
-import { useParam } from './hooks.ts';
-import { useManual } from './ManualOverlay.tsx';
+import { TextButton } from '@samplerealm/modules/editor/controls.tsx';
+import { EditorRootContext } from '@samplerealm/modules/editor/editorRoot.ts';
+import { juceHeight } from '@samplerealm/modules/editor/fonts.ts';
+import { HeaderBar, type HeaderLayout } from '@samplerealm/modules/editor/HeaderBar.tsx';
+import { useParam } from '@samplerealm/modules/editor/hooks.ts';
+import { useManual } from '@samplerealm/modules/editor/ManualOverlay.tsx';
+import { usePrompt } from '@samplerealm/modules/editor/PromptOverlay.tsx';
+import manualText from '../../Assets/Manual.md?raw';
+import type { MeterBackend } from './backend.ts';
 import { Dashboard } from './meter/Dashboard.tsx';
 import { PADDING } from './meter/dashboardLayout.ts';
 import { CONTROLS_WIDTH, MeterControls } from './meter/MeterControls.tsx';
 import { choiceAt, themeVariables, type Look } from './meter/theme.ts';
-import { usePrompt } from './PromptOverlay.tsx';
 
 // Source/shared/EditorSize.h's default. The plugin's window can be dragged to other sizes, and the editor fills it
 export const EDITOR_WIDTH = 960;
@@ -25,8 +26,8 @@ const HEADER_LAYOUT: HeaderLayout = {
   titleHeight: 16,
   gap: 12,
   controlsHeight: 24,
-  trailingWidth: CONTROLS_WIDTH,
-  trailingInset: 10,
+  meterWidth: CONTROLS_WIDTH,
+  meterInset: 10,
 };
 
 // In capture mode, the strip along the bottom with the maker's name
@@ -48,11 +49,11 @@ function useSize(element: HTMLElement | null) {
   return size;
 }
 
-export const Editor = memo(function Editor({ backend }: { backend: PluginBackend }) {
+export const Editor = memo(function Editor({ backend }: { backend: MeterBackend }) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const { width, height } = useSize(root);
   const { prompt, overlay } = usePrompt();
-  const manual = useManual();
+  const manual = useManual(manualText);
 
   const theme = useParam(backend, 'theme');
   const reactivity = useParam(backend, 'reactivity');
@@ -65,11 +66,11 @@ export const Editor = memo(function Editor({ backend }: { backend: PluginBackend
 
   useEffect(() => () => clearTimeout(exitTimer.current), []);
 
-  const amounts = backend.info.scales.reactivityAmounts;
+  const amounts = backend.meter.scales.reactivityAmounts;
 
   const look = useMemo<Look>(
     () => ({
-      theme: choiceAt(backend.info.themes, theme.value),
+      theme: choiceAt(backend.meter.themes, theme.value),
       reactivity: choiceAt(amounts, reactivity.value),
       capture,
     }),
@@ -118,7 +119,7 @@ export const Editor = memo(function Editor({ backend }: { backend: PluginBackend
                 backend={backend}
                 prompt={prompt}
                 showManual={manual.showManual}
-                trailing={(bounds) => <MeterControls backend={backend} bounds={bounds} onCapture={() => setCapture(true)} />}
+                meter={(bounds) => <MeterControls backend={backend} bounds={bounds} onCapture={() => setCapture(true)} />}
               />
             )}
           </>

@@ -1,4 +1,4 @@
-// Mirrors Source/shared/MeterFrame.h, whose layout arrives in the UI info
+// Mirrors Source/shared/MeterFrame.h, whose layout arrives in the meter info
 import type { FrameLayout } from '../backend.ts';
 
 export type Scalar =

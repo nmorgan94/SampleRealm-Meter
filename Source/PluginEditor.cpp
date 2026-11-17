@@ -65,7 +65,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     reactivityAttachment.sendInitialUpdate();
     viewAttachment.sendInitialUpdate();
 
-    prompt.setFont (CustomLookAndFeel::orbitron (CustomLookAndFeel::regularWeight).withHeight (14.0f));
     addChildComponent (prompt);
     addChildComponent (manual);
 

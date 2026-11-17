@@ -8,7 +8,7 @@
 
 //==============================================================================
 /**
- * Where values sit on the editor's scales, and how fast it moves. uiInfoJson() tells the web UI
+ * Where values sit on the editor's scales, and how fast it moves. meterInfoJson() tells the web UI
  * the numbers; the two functions are also in webui/src/meter/scales.ts.
  */
 namespace MeterScales

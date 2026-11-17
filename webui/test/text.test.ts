@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { clipsText, loudnessText, truePeakText } from '../src/meter/text.ts';
-import { info } from './engine.ts';
+import { meter } from './engine.ts';
 
-const { noLoudness } = info.frame;
+const { noLoudness } = meter.frame;
 
 test('readings are written to one place, or as dashes with nothing to show', () => {
   assert.equal(loudnessText(-23.04, noLoudness), '-23.0');

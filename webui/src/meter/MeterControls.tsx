@@ -1,8 +1,9 @@
 // Mirrors Source/ui/meter/MeterControls.h: the header's buttons for the meter
-import type { PluginBackend } from '../backend.ts';
-import { TextButton, type Rect } from '../controls.tsx';
-import { useParam } from '../hooks.ts';
-import { formatValue } from '../params.ts';
+import { TextButton } from '@samplerealm/modules/editor/controls.tsx';
+import { useParam } from '@samplerealm/modules/editor/hooks.ts';
+import { formatValue } from '@samplerealm/modules/editor/params.ts';
+import type { MeterBackend } from '../backend.ts';
+import type { Rect } from './rect.ts';
 
 const THEME_WIDTH = 104;
 const REACTIVITY_WIDTH = 84;
@@ -23,12 +24,12 @@ const layOut = ({ left, top, width, height }: Rect) => {
 };
 
 // A choice that steps to the next on each click, and round to the first again
-function useStepping(backend: PluginBackend, id: string) {
+function useStepping(backend: MeterBackend, id: string) {
   const { value, commit, param } = useParam(backend, id);
   return { text: formatValue(param, value).toUpperCase(), step: () => commit((Math.round(value) + 1) % param.choices.length) };
 }
 
-export function MeterControls({ backend, bounds, onCapture }: { backend: PluginBackend; bounds: Rect; onCapture(): void }) {
+export function MeterControls({ backend, bounds, onCapture }: { backend: MeterBackend; bounds: Rect; onCapture(): void }) {
   const theme = useStepping(backend, 'theme');
   const reactivity = useStepping(backend, 'reactivity');
   const boxes = layOut(bounds);

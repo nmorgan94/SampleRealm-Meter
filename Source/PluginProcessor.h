@@ -1,9 +1,9 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <editor/editor.h>
 #include "Parameters.h"
 #include "dsp/MeterEngine.h"
-#include "presets/PresetManager.h"
 #include "shared/EditorSize.h"
 
 //==============================================================================
@@ -60,7 +60,7 @@ public:
 
 private:
     juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters",
-                                               Parameters::createLayout() };
+                                               createParameterLayout (ParameterSpecs::all, Parameters::versionHint) };
     PresetManager presetManager { apvts, createPresetConfig() };
 
     MeterEngine meterEngine;

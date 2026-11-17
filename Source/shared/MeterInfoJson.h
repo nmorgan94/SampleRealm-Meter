@@ -1,49 +1,16 @@
 #pragma once
 
-#include <cmath>
-#include <cstdlib>
 #include <string>
-#include "BuildType.h"
+#include <samplerealm/UiInfoJson.h>
 #include "MeterFrame.h"
 #include "MeterScales.h"
-#include "ParameterSpecs.h"
 #include "Themes.h"
 
 //==============================================================================
-inline std::string uiInfoJson (const char* version, const char* commit)
+/** What the web editor draws the meter from, beside uiInfoJson: MeterInfo in webui/src/backend.ts. */
+inline std::string meterInfoJson()
 {
-    const auto quoted = [] (const char* text)
-    {
-        std::string result = "\"";
-
-        for (auto* c = text; *c != '\0'; ++c)
-        {
-            if (*c == '"' || *c == '\\')
-                result += '\\';
-
-            result += *c;
-        }
-
-        return result + "\"";
-    };
-
-    // Not printf, which follows the host's locale
-    const auto number = [] (float value)
-    {
-        const auto scaled = std::llround (static_cast<double> (value) * 10000.0);
-        const auto magnitude = std::llabs (scaled);
-        auto text = std::string (scaled < 0 ? "-" : "") + std::to_string (magnitude / 10000);
-
-        if (const auto fraction = magnitude % 10000; fraction != 0)
-        {
-            auto digits = std::to_string (fraction);
-            digits.insert (0, 4 - digits.size(), '0');
-            digits.erase (digits.find_last_not_of ('0') + 1);
-            text += "." + digits;
-        }
-
-        return text;
-    };
+    using JsonText::number, JsonText::quoted;
 
     // A list's items as text, with commas between
     const auto joined = [] (const auto& values, const auto& asText)
@@ -58,34 +25,7 @@ inline std::string uiInfoJson (const char* version, const char* commit)
 
     const auto whole = [] (int value) { return std::to_string (value); };
 
-    const auto kindName = [] (ParameterSpecs::Kind kind)
-    {
-        switch (kind)
-        {
-            case ParameterSpecs::Kind::integer: return "integer";
-            case ParameterSpecs::Kind::choice:  return "choice";
-            case ParameterSpecs::Kind::real:    break;
-        }
-
-        return "real";
-    };
-
-    std::string json = "{\"version\":" + quoted (version) + ",\"commit\":" + quoted (commit) + ",\"build\":" + quoted (BuildType::name) + ",\"params\":[";
-
-    for (size_t i = 0; i < ParameterSpecs::all.size(); ++i)
-    {
-        const auto& spec = *ParameterSpecs::all[i];
-
-        json += (i == 0 ? "{" : ",{");
-        json += "\"id\":" + quoted (spec.id) + ",\"name\":" + quoted (spec.name);
-        json += ",\"kind\":" + quoted (kindName (spec.kind));
-        json += ",\"min\":" + number (spec.min) + ",\"max\":" + number (spec.max);
-        json += ",\"defaultValue\":" + number (spec.defaultValue);
-        json += ",\"step\":" + number (spec.step) + ",\"skew\":" + number (spec.skew);
-        json += ",\"unit\":" + quoted (spec.unit) + ",\"choices\":[" + joined (spec.choices, quoted) + "]}";
-    }
-
-    json += "],\"frame\":{\"scalars\":[" + joined (MeterFrame::scalarNames, quoted);
+    std::string json = "{\"frame\":{\"scalars\":[" + joined (MeterFrame::scalarNames, quoted);
     json += "],\"numBands\":" + std::to_string (MeterFrame::numBands);
     json += ",\"numPoints\":" + std::to_string (MeterFrame::numPoints);
     json += ",\"minHz\":" + number (MeterFrame::minHz) + ",\"maxHz\":" + number (MeterFrame::maxHz);

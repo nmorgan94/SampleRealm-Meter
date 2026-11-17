@@ -42,12 +42,11 @@ void MeterEngine::process (const juce::AudioBuffer<float>& buffer, const Transpo
 {
     auto reset = pendingReset.exchange (false);
 
-    const auto playing = transport.available && transport.playing;
-
-    if (playing && ! wasPlaying)
+    // The host's own flag: the meter doesn't need a beat position to count
+    if (transport.hostPlaying && ! wasPlaying)
         reset = true;
 
-    wasPlaying = playing;
+    wasPlaying = transport.hostPlaying;
 
     if (reset)
     {
@@ -56,7 +55,7 @@ void MeterEngine::process (const juce::AudioBuffer<float>& buffer, const Transpo
         readerReset = true;
     }
 
-    const auto counting = ! transport.available || transport.playing;
+    const auto counting = ! transport.available || transport.hostPlaying;
     loudness.setIntegrating (counting);
     integrating = counting;
 

@@ -15,7 +15,4 @@ namespace Parameters
     inline const juce::ParameterID themeId      { ParameterSpecs::theme.id, versionHint };
     inline const juce::ParameterID reactivityId { ParameterSpecs::reactivity.id, versionHint };
     inline const juce::ParameterID viewId       { ParameterSpecs::view.id, versionHint };
-
-    // Built from ParameterSpecs::all, in its order
-    juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 }

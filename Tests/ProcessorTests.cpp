@@ -114,54 +114,6 @@ TEST_CASE_METHOD (ProcessorFixture, "Only matching mono or stereo layouts are su
 }
 
 //==============================================================================
-struct FakePlayHead : juce::AudioPlayHead
-{
-    juce::Optional<PositionInfo> getPosition() const override   { return position; }
-
-    juce::Optional<PositionInfo> position;
-};
-
-static bool operator== (const Transport& a, const Transport& b)
-{
-    return juce::exactlyEqual (a.bpm, b.bpm) && a.playing == b.playing && juce::exactlyEqual (a.ppq, b.ppq);
-}
-
-TEST_CASE ("The transport takes the host's tempo and position, or defaults", "[transport]")
-{
-    FakePlayHead host;
-    juce::AudioPlayHead::PositionInfo position;
-    position.setBpm (128.0);
-    position.setIsPlaying (true);
-    position.setPpqPosition (8.5);
-    host.position = position;
-
-    CHECK (Transport::from (&host) == Transport { 128.0, true, 8.5 });
-    CHECK (Transport::from (&host).available);
-
-    // The Standalone has no play head. Hosts may give no position, or leave out the tempo and the beat
-    CHECK (Transport::from (nullptr) == Transport {});
-    CHECK_FALSE (Transport::from (nullptr).available);
-    host.position = juce::nullopt;
-    CHECK (Transport::from (&host) == Transport {});
-    CHECK_FALSE (Transport::from (&host).available);
-    host.position = juce::AudioPlayHead::PositionInfo {};
-    CHECK (Transport::from (&host) == Transport {});
-}
-
-TEST_CASE ("The transport moves on only while playing", "[transport]")
-{
-    Transport transport { 120.0, true, 4.0 };
-
-    // Half a second at 120 BPM is one beat
-    transport.advance (24000, 48000.0);
-    CHECK_THAT (transport.ppq, WithinAbs (5.0, 1.0e-12));
-
-    transport.playing = false;
-    transport.advance (24000, 48000.0);
-    CHECK_THAT (transport.ppq, WithinAbs (5.0, 1.0e-12));
-}
-
-//==============================================================================
 TEST_CASE_METHOD (ProcessorFixture, "State round trips into a new instance, with the editor's size", "[state]")
 {
     setParameter (processor, Parameters::themeId, 3.0f);

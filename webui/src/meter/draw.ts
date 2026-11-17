@@ -1,7 +1,7 @@
 // Mirrors the paint functions of Source/ui/meter: MeterPanel, SpectrumView, StereoFieldView and LoudnessView
-import { juceHeight } from '../fonts.ts';
-import { bottom, right, type Rect } from '../layout.ts';
+import { juceHeight } from '@samplerealm/modules/editor/fonts.ts';
 import type { Scales } from '../backend.ts';
+import { bottom, right, type Rect } from './rect.ts';
 import type { FrameReader } from './frame.ts';
 import { strokeGlow } from './glow.ts';
 import { acrossSpectrum, proportion } from './scales.ts';

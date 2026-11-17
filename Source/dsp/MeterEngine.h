@@ -7,7 +7,7 @@
 #include "StereoField.h"
 #include "TruePeak.h"
 #include "../shared/MeterFrame.h"
-#include "../shared/Transport.h"
+#include <samplerealm/Transport.h>
 
 //==============================================================================
 /**
