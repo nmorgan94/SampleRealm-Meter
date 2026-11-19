@@ -2,6 +2,7 @@
 
 //==============================================================================
 MeterEngine::MeterEngine()
+    : fifoData (maxChannels), incoming (maxChannels), mid (fifoSize)
 {
     prepare (sampleRate.load(), maxChannels);
     updateFrame (0.0);

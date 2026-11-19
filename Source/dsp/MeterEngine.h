@@ -8,6 +8,7 @@
 #include "TruePeak.h"
 #include "../shared/MeterFrame.h"
 #include <samplerealm/Transport.h>
+#include <vector>
 
 //==============================================================================
 /**
@@ -79,7 +80,7 @@ private:
     std::atomic<bool> integrating { true };
 
     juce::AbstractFifo fifo { fifoSize };
-    std::array<std::array<float, fifoSize>, maxChannels> fifoData {};
+    std::vector<std::array<float, fifoSize>> fifoData;
 
     //==============================================================================
     // The reader thread's
@@ -91,8 +92,8 @@ private:
     bool idle = false;
     bool resetShown = false;
     std::array<float, maxChannels> peakDb { MeterFrame::peakFloorDb, MeterFrame::peakFloorDb };
-    std::array<std::array<float, fifoSize>, maxChannels> incoming {};
-    std::array<float, fifoSize> mid {};
+    std::vector<std::array<float, fifoSize>> incoming;
+    std::vector<float> mid;
     MeterFrame::Data frame {};
 
     JUCE_DECLARE_NON_COPYABLE (MeterEngine)
