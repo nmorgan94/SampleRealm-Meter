@@ -59,9 +59,17 @@ void SpectrumView::paintContent (juce::Graphics& g, juce::Rectangle<float> area)
         g.setColour (theme.dim);
         g.setFont (font (10.0f));
 
+        // In a narrow plot, only the labels that don't run into the one before
+        auto lastLabelX = plot.getX() - labelSpacing;
+
         for (size_t i = 0; i < spectrumGridHz.size(); ++i)
         {
             const auto x = plot.getX() + plot.getWidth() * acrossSpectrum (spectrumGridHz[i]);
+
+            if (x - lastLabelX < labelSpacing)
+                continue;
+
+            lastLabelX = x;
             g.drawText (spectrumGridLabels[i], juce::Rectangle<float> (x - 20.0f, labels.getY(), 40.0f, labels.getHeight()),
                         juce::Justification::centred, false);
         }

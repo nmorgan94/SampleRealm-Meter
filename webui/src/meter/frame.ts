@@ -13,14 +13,16 @@ export type Scalar =
   | 'correlation'
   | 'balance'
   | 'pulse'
-  | 'integrating';
+  | 'integrating'
+  | 'waveformPhase';
 
 export interface FrameReader {
   layout: FrameLayout;
-  // Where the bands, their held peaks and the goniometer's x, y pairs start
+  // Where the bands, their held peaks, the goniometer's x, y pairs and the waveform's columns start
   bandsOffset: number;
   peaksOffset: number;
   pointsOffset: number;
+  waveformOffset: number;
   size: number;
   scalar(frame: Float32Array, name: Scalar): number;
   // MeterFrame::silent
@@ -32,7 +34,8 @@ export function frameReader(layout: FrameLayout): FrameReader {
   const bandsOffset = layout.scalars.length;
   const peaksOffset = bandsOffset + layout.numBands;
   const pointsOffset = peaksOffset + layout.numBands;
-  const size = pointsOffset + 2 * layout.numPoints;
+  const waveformOffset = pointsOffset + 2 * layout.numPoints;
+  const size = waveformOffset + layout.waveformBands * layout.numColumns;
 
   const at = (name: Scalar) => {
     const found = index.get(name);
@@ -45,6 +48,7 @@ export function frameReader(layout: FrameLayout): FrameReader {
     bandsOffset,
     peaksOffset,
     pointsOffset,
+    waveformOffset,
     size,
     scalar: (frame, name) => frame[at(name)],
     silent: () => {

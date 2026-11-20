@@ -32,3 +32,43 @@ test('frames from the worklet reach the listeners, and a reset reaches the workl
   assert.deepEqual(posted, [{ type: 'call', name: 'resetMeters' }]);
   assert.equal(resets, 1);
 });
+
+test('a look keeps the custom theme, changing it is an edit, and Init clears it', async () => {
+  // As PresetManager writes a look: the custom theme beside the parameters
+  const withCustom = `<?xml version="1.0" encoding="UTF-8"?>
+<PRESET name="Mine" category="Dashboard" author="Me" formatVersion="1">
+  <Parameters>
+    <PARAM id="theme" value="5.0"/>
+    <CustomTheme base="2" primary="112233" secondary="445566" hot="778899"/>
+  </Parameters>
+</PRESET>`;
+
+  const backend = meterWorkletBackend(info, meter, [withCustom]);
+  const custom = { base: 2, primary: '112233', secondary: '445566', hot: '778899' };
+  assert.deepEqual(backend.customTheme(), meter.customTheme);
+
+  const heard: unknown[] = [];
+  backend.onCustomTheme((theme) => heard.push(theme));
+
+  const [mine] = await backend.presets.list();
+  await backend.presets.load(mine!);
+  assert.deepEqual(backend.customTheme(), custom);
+  assert.deepEqual(heard, [custom]);
+  assert.equal(backend.presets.status().modified, false);
+
+  // The same again is no edit
+  backend.setCustomTheme({ ...custom });
+  assert.equal(backend.presets.status().modified, false);
+
+  backend.setCustomTheme({ ...custom, base: 0 });
+  assert.equal(backend.presets.status().modified, true);
+
+  // Saved in the page's own looks too
+  assert.equal(await backend.presets.save('Changed', 'User'), null);
+  await backend.presets.loadInit();
+  assert.deepEqual(backend.customTheme(), meter.customTheme);
+
+  const changed = (await backend.presets.list()).find((preset) => preset.name === 'Changed');
+  await backend.presets.load(changed!);
+  assert.deepEqual(backend.customTheme(), { ...custom, base: 0 });
+});

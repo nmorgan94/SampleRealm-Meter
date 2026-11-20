@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "ui/CustomLookAndFeel.h"
+#include "ui/meter/CustomThemeEditor.h"
 #include "ui/meter/Dashboard.h"
 #include "ui/meter/MeterControls.h"
 #include <BinaryData.h>
@@ -38,6 +39,14 @@ public:
     /** Draws the meter as it is now, after a time. Called on every screen refresh. */
     void showNextFrame (double seconds);
 
+    /** The theme button's menu: every theme, the one showing ticked, then the way to the custom theme's editor. */
+    juce::PopupMenu themeMenu();
+
+    CustomThemeEditor& getCustomThemeEditor()   { return customTheme; }
+
+    /** The view button's menu: the panels, ticked where the dashboard has them, then the reactivity. */
+    juce::PopupMenu viewMenu();
+
     Dashboard& getDashboard()   { return dashboard; }
 
 private:
@@ -50,6 +59,12 @@ private:
 
     PromptOverlay prompt;
     ManualOverlay manual { juce::String::createStringFromData (BinaryData::Manual_md, BinaryData::Manual_mdSize) };
+    CustomThemeEditor customTheme { [this] { return processorRef.getCustomTheme(); },
+                                    [this] (const Themes::Custom& custom)
+                                    {
+                                        processorRef.setCustomTheme (custom);
+                                        customThemeChanged();
+                                    } };
     MeterControls controls;
     HeaderBar header { "SampleRealm: METER", headerLayout, processorRef.getPresetManager(), prompt, [this] { manual.show(); },
                        About::text (processorRef), controls };
@@ -59,10 +74,21 @@ private:
     juce::ParameterAttachment themeAttachment, reactivityAttachment, viewAttachment;
     bool viewShown = false;
 
+    // By DashboardLayout::Panel
+    std::array<std::unique_ptr<juce::ParameterAttachment>, DashboardLayout::numPanels> shownAttachments;
+    DashboardLayout::Shown shown = DashboardLayout::allShown;
+
     std::optional<double> lastFrameTime;
     juce::VBlankAttachment vblank;
 
     void themeChanged (int theme);
+
+    // An edit to the custom theme shows at once; a look or session loading, on the next frame
+    Themes::Custom customThemeShown;
+    void customThemeChanged();
+
+    /** Adds a choice parameter's values to a menu, the current one ticked. */
+    void addChoices (juce::PopupMenu&, const juce::ParameterID&, juce::ParameterAttachment&);
     void timerCallback() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)

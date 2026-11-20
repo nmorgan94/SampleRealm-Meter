@@ -1,10 +1,10 @@
-// Mirrors Source/ui/meter/Dashboard.cpp: the meter's three panels on one canvas. One can grow to fill the
+// Mirrors Source/ui/meter/Dashboard.cpp: the meter's panels on one canvas. One can grow to fill the
 // dashboard while the others fade out
 import { useEffect, useRef } from 'react';
 import type { MeterBackend } from '../backend.ts';
 import { contains, type Rect } from './rect.ts';
-import { ease, expanding, PANELS, type Panel } from './dashboardLayout.ts';
-import { drawLoudness, drawPanel, drawSpectrum, drawStereo, hasRoom, stereoTrace, type Scene } from './draw.ts';
+import { ease, expanding, PANELS, type Panel, type Shown } from './dashboardLayout.ts';
+import { drawLoudness, drawPanel, drawSpectrum, drawStereo, drawWaveform, hasRoom, stereoTrace, type Scene } from './draw.ts';
 import { frameReader } from './frame.ts';
 import { colour, type Look } from './theme.ts';
 import { contentBounds, expandButtonBounds } from './viewLayout.ts';
@@ -15,26 +15,28 @@ export const DASHBOARD_VIEW = 0;
 // MeterEngine::maxFrameSeconds: a stalled page catches up over a few frames rather than in one jump
 const MAX_FRAME_SECONDS = 0.25;
 
-const TITLES: Record<Panel, string> = { spectrum: 'SPECTRUM', stereo: 'STEREO FIELD', loudness: 'LOUDNESS' };
+const TITLES: Record<Panel, string> = { spectrum: 'SPECTRUM', stereo: 'STEREO FIELD', loudness: 'LOUDNESS', waveform: 'WAVEFORM' };
 
 interface DashboardProps {
   backend: MeterBackend;
   look: Look;
   view: number;
+  // Which panels the dashboard has. An expanded panel shows whether it's one of them or not
+  shown: Shown;
   bounds: Rect;
   // Called with the view a click asks for
   onViewChosen(view: number): void;
 }
 
-export function Dashboard({ backend, look, view, bounds, onViewChosen }: DashboardProps) {
+export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: DashboardProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   // What the drawing loop reads, kept out of React's renders
-  const live = useRef({ look, view, bounds, onViewChosen, expanded: 'spectrum' as Panel, expansion: 0, shown: false, changed: true });
+  const live = useRef({ look, view, shown, bounds, onViewChosen, expanded: 'spectrum' as Panel, expansion: 0, opened: false, changed: true });
   const state = live.current;
 
-  if (state.view !== view || !state.shown) {
-    const animate = state.shown;
+  if (state.view !== view || !state.opened) {
+    const animate = state.opened;
 
     if (view !== DASHBOARD_VIEW) {
       const panel = PANELS[Math.min(PANELS.length, Math.max(1, view)) - 1];
@@ -45,12 +47,19 @@ export function Dashboard({ backend, look, view, bounds, onViewChosen }: Dashboa
       state.expansion = 0;
     }
 
-    state.shown = true;
+    state.opened = true;
   }
 
-  Object.assign(state, { look, view, bounds, onViewChosen, changed: true });
+  Object.assign(state, { look, view, shown, bounds, onViewChosen, changed: true });
 
-  const panelsNow = () => expanding({ left: 0, top: 0, width: state.bounds.width, height: state.bounds.height }, state.expanded, ease(state.expansion));
+  const panelsNow = () => expanding({ left: 0, top: 0, width: state.bounds.width, height: state.bounds.height }, state.shown, state.expanded, ease(state.expansion));
+
+  // Dashboard::layOut: the expanded panel once it has started to grow, and the dashboard's own until it has filled
+  const isExpanded = (panel: Panel) => panel === state.expanded && state.expansion > 0;
+  const isVisible = (panel: Panel) => isExpanded(panel) || (state.shown[panel] && state.expansion < 1);
+
+  // Not for the dashboard's only panel, which has nothing to expand over
+  const isExpandable = () => state.view !== DASHBOARD_VIEW || PANELS.filter((panel) => state.shown[panel]).length > 1;
 
   useEffect(() => {
     const element = canvas.current;
@@ -116,17 +125,17 @@ export function Dashboard({ backend, look, view, bounds, onViewChosen }: Dashboa
 
       // The expanded panel last, over the others
       for (const panel of [...PANELS.filter((p) => p !== state.expanded), state.expanded]) {
-        const isExpanded = panel === state.expanded;
-        if (!isExpanded && state.expansion >= 1) continue;
+        if (!isVisible(panel)) continue;
 
-        ctx.globalAlpha = isExpanded ? 1 : 1 - eased;
-        drawPanel(ctx, panels[panel], TITLES[panel], isExpanded && state.view !== DASHBOARD_VIEW, state.look);
+        ctx.globalAlpha = isExpanded(panel) ? 1 : 1 - eased;
+        drawPanel(ctx, panels[panel], TITLES[panel], isExpanded(panel) && state.view !== DASHBOARD_VIEW, isExpandable(), state.look);
 
         if (hasRoom(panels[panel])) {
           const area = contentBounds(panels[panel]);
           if (panel === 'spectrum') drawSpectrum(ctx, scene, area);
           else if (panel === 'stereo') drawStereo(ctx, scene, area, trace);
-          else drawLoudness(ctx, scene, area);
+          else if (panel === 'loudness') drawLoudness(ctx, scene, area);
+          else drawWaveform(ctx, scene, area);
         }
       }
 
@@ -145,9 +154,8 @@ export function Dashboard({ backend, look, view, bounds, onViewChosen }: Dashboa
   const hit = (x: number, y: number) => {
     const panels = panelsNow();
     const order = state.expansion > 0 ? [state.expanded, ...PANELS.filter((p) => p !== state.expanded)] : PANELS;
-    const visible = order.filter((panel) => panel === state.expanded || state.expansion < 1);
-    const panel = visible.find((p) => contains(panels[p], x, y));
-    if (!panel) return null;
+    const panel = order.filter(isVisible).find((p) => contains(panels[p], x, y));
+    if (!panel || !isExpandable()) return null;
 
     const onButton = !state.look.capture && contains(expandButtonBounds(panels[panel]), x, y);
     return { panel, onButton };
@@ -171,7 +179,7 @@ export function Dashboard({ backend, look, view, bounds, onViewChosen }: Dashboa
       className="absolute block"
       style={{ left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }}
       role="img"
-      aria-label="Spectrum, stereo field and loudness meters"
+      aria-label="Spectrum, waveform, stereo field and loudness meters"
       onClick={(e) => {
         const found = at(e);
         if (found?.onButton) toggle(found.panel);

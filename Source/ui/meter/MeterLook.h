@@ -9,14 +9,16 @@ struct MeterTheme
 {
     juce::Colour background, panel, line, text, dim, primary, secondary, hot;
 
-    static MeterTheme of (int index)
-    {
-        const auto& palette = Themes::all[static_cast<size_t> (juce::jlimit (0, static_cast<int> (Themes::all.size()) - 1, index))];
-        const auto opaque = [] (std::uint32_t rgb) { return juce::Colour (0xff000000u | rgb); };
+    static juce::Colour opaque (std::uint32_t rgb)   { return juce::Colour (0xff000000u | rgb); }
 
+    static MeterTheme of (const Themes::Palette& palette)
+    {
         return { opaque (palette.background), opaque (palette.panel), opaque (palette.line), opaque (palette.text),
                  opaque (palette.dim), opaque (palette.primary), opaque (palette.secondary), opaque (palette.hot) };
     }
+
+    /** A built-in theme. */
+    static MeterTheme of (int index)   { return of (Themes::builtIn (index)); }
 };
 
 /** How the meter is drawn right now, shared by every view. */

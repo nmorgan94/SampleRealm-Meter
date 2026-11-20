@@ -12,9 +12,10 @@ test('the ui info carries the version, the commit, the build type and every para
   assert.match(info.commit, /^([0-9a-f]{7,}(-local)?|unknown)$/);
   assert.match(info.build, /^(Debug|Release)$/);
   assert.deepEqual(info.params, [
-    { id: 'theme', name: 'Theme', kind: 'choice', min: 0, max: 4, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Neon', 'Ember', 'Phosphor', 'Ultraviolet', 'Ice'] },
+    { id: 'theme', name: 'Theme', kind: 'choice', min: 0, max: 5, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Neon', 'Ember', 'Phosphor', 'Ultraviolet', 'Ice', 'Custom'] },
     { id: 'reactivity', name: 'Reactivity', kind: 'choice', min: 0, max: 2, defaultValue: 2, step: 1, skew: 1, unit: '', choices: ['Off', 'Subtle', 'Full'] },
-    { id: 'view', name: 'View', kind: 'choice', min: 0, max: 3, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Dashboard', 'Spectrum', 'Stereo', 'Loudness'] },
+    { id: 'view', name: 'View', kind: 'choice', min: 0, max: 4, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Dashboard', 'Spectrum', 'Stereo', 'Loudness', 'Waveform'] },
+    ...['Spectrum', 'Waveform', 'Stereo', 'Loudness'].map((panel) => ({ id: `show${panel}`, name: `Show ${panel}`, kind: 'toggle', min: 0, max: 1, defaultValue: 1, step: 1, skew: 1, unit: '', choices: [] })),
   ]);
 });
 

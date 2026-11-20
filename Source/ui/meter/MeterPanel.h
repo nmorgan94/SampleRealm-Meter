@@ -22,6 +22,9 @@ public:
 
     void setExpanded (bool shouldBeExpanded);
 
+    /** Whether there's anything to expand over: not for the dashboard's only panel. */
+    void setExpandable (bool shouldBeExpandable);
+
     /** The meter now, and how long it's been since the last frame. */
     void setFrame (const MeterFrame::Data& newFrame, double seconds);
 
@@ -50,7 +53,7 @@ protected:
     static juce::Font font (float height, bool bold = false);
 
 private:
-    bool expanded = false;
+    bool expanded = false, expandable = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MeterPanel)
 };

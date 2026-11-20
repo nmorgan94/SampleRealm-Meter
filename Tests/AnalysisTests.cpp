@@ -51,6 +51,19 @@ namespace
         MeterEngine engine;
     };
 
+    // A waveform column's low, mid and high peaks, counting back from the newest at 0
+    std::array<float, MeterFrame::waveformBands> columnsAgo (const MeterFrame::Data& frame, int ago)
+    {
+        std::array<float, MeterFrame::waveformBands> peaks;
+        std::copy_n (frame.begin() + MeterFrame::waveformOffset + MeterFrame::waveformBands * (MeterFrame::numColumns - 1 - ago), peaks.size(), peaks.begin());
+        return peaks;
+    }
+
+    float loudestOf (const std::array<float, MeterFrame::waveformBands>& peaks)
+    {
+        return *std::max_element (peaks.begin(), peaks.end());
+    }
+
     const Transport stopped { 120.0, false, 0.0, true };
     const Transport playing { 120.0, true, 8.25, true, true };
     const Transport playingWithNoPosition { 120.0, false, 0.0, true, true };
@@ -297,6 +310,64 @@ TEST_CASE ("The beat's pulse jumps on a low hit and dies away, and a steady tone
 }
 
 //==============================================================================
+TEST_CASE_METHOD (EngineFixture, "The waveform shows a tone in its own band: low, mid or high", "[waveform]")
+{
+    const auto [hz, band] = GENERATE (table<double, size_t> ({ { 100.0, 0 }, { 1000.0, 1 }, { 8000.0, 2 } }));
+    const auto peaks = columnsAgo (play (makeTone (2, 1.0, hz, 0.5f)), 0);
+
+    for (size_t i = 0; i < peaks.size(); ++i)
+    {
+        CAPTURE (hz, i, peaks[i]);
+
+        // At 8 kHz a peak falls between samples
+        CHECK ((i == band ? peaks[i] > 0.4f && peaks[i] < 0.55f : peaks[i] < 0.1f));
+    }
+}
+
+TEST_CASE_METHOD (EngineFixture, "The waveform scrolls by at 60 columns a second", "[waveform]")
+{
+    // Half a second of tone, then two seconds and half a column of silence
+    const auto tone = makeTone (2, 0.5, 1000.0, 0.5f);
+    juce::AudioBuffer<float> audio (2, tone.getNumSamples() + 2 * static_cast<int> (sampleRate) + 400);
+    audio.clear();
+
+    for (int channel = 0; channel < 2; ++channel)
+        audio.copyFrom (channel, 0, tone, channel, 0, tone.getNumSamples());
+
+    const auto& frame = play (audio);
+
+    // The column after the tone has the filters ringing from its sudden end
+    CHECK (loudestOf (columnsAgo (frame, 118)) < 0.01f);
+    CHECK (loudestOf (columnsAgo (frame, 120)) > 0.4f);
+    CHECK (loudestOf (columnsAgo (frame, 149)) > 0.4f);
+    CHECK (loudestOf (columnsAgo (frame, 150)) < 0.01f);
+    CHECK_THAT (frame[MeterFrame::waveformPhase], WithinAbs (0.5, 1.0e-6));
+}
+
+TEST_CASE ("The waveform is the same however often it's read", "[waveform]")
+{
+    const auto readEvery = [] (int blocks)
+    {
+        MeterEngine engine;
+        engine.prepare (sampleRate, 2);
+        auto count = 0;
+
+        inBlocks (makeTone (2, 2.0, 90.0, 0.5f), [&] (juce::AudioBuffer<float>& block)
+        {
+            engine.process (block, {});
+
+            if (++count % blocks == 0)
+                engine.updateFrame (blocks * static_cast<double> (block.getNumSamples()) / sampleRate);
+        });
+
+        const auto& frame = engine.updateFrame (0.0);
+        return std::vector<float> (frame.begin() + MeterFrame::waveformOffset, frame.end());
+    };
+
+    CHECK (readEvery (1) == readEvery (7));
+}
+
+//==============================================================================
 TEST_CASE_METHOD (EngineFixture, "A frame holds everything the engine heard", "[engine]")
 {
     const auto& frame = play (makeTone (2, 20.0, 1000.0, dbToGain (-23.0f)));
@@ -327,11 +398,6 @@ TEST_CASE_METHOD (EngineFixture, "A frame holds everything the engine heard", "[
 
     CAPTURE (worst);
     CHECK_THAT (offTheUpright, WithinAbs (0.0, 1.0e-6));
-}
-
-TEST_CASE_METHOD (EngineFixture, "The frame before anything is heard is the silent one", "[engine]")
-{
-    CHECK (engine.updateFrame (0.0) == MeterFrame::silent());
 }
 
 TEST_CASE_METHOD (EngineFixture, "A mono buffer is metered as the same signal in both channels", "[engine]")
@@ -412,11 +478,15 @@ TEST_CASE_METHOD (EngineFixture, "When the host stops sending audio, the display
     CHECK_THAT (frame[static_cast<size_t> (MeterFrame::bandsOffset + bandOf (1000.0f))], WithinAbs (MeterFrame::bandFloorDb, 0.0));
 
     // The first point still off the centre, if there is one
-    const auto moving = std::find_if (frame.begin() + MeterFrame::pointsOffset, frame.end(), [] (float point) { return ! juce::exactlyEqual (point, 0.0f); });
+    const auto pointsEnd = frame.begin() + MeterFrame::waveformOffset;
+    const auto moving = std::find_if (frame.begin() + MeterFrame::pointsOffset, pointsEnd, [] (float point) { return ! juce::exactlyEqual (point, 0.0f); });
     const auto movingIndex = moving - (frame.begin() + MeterFrame::pointsOffset);
 
-    CAPTURE (movingIndex, moving != frame.end() ? *moving : 0.0f);
-    CHECK (moving == frame.end());
+    CAPTURE (movingIndex, moving != pointsEnd ? *moving : 0.0f);
+    CHECK (moving == pointsEnd);
+
+    // The waveform has scrolled out to flat
+    CHECK (*std::max_element (frame.begin() + MeterFrame::waveformOffset, frame.end()) == 0.0f);
 
     // The live loudness goes too, though only process() measures it
     CHECK_THAT (frame[MeterFrame::momentary], WithinAbs (MeterFrame::noLoudness, 0.0));
@@ -425,6 +495,10 @@ TEST_CASE_METHOD (EngineFixture, "When the host stops sending audio, the display
     // What was measured stays
     CHECK_THAT (frame[MeterFrame::maxTruePeak], WithinAbs (-6.02, 0.1));
     CHECK_THAT (frame[MeterFrame::integrated], WithinAbs (-6.02, 0.1));
+
+    // And the frame has stopped changing, so the editors stop drawing. Part of a waveform column later
+    const auto settled = frame;
+    CHECK (engine.updateFrame (0.01) == settled);
 }
 
 TEST_CASE_METHOD (EngineFixture, "The live loudness falls as it would through silence once the audio stops, and starts again when it's back", "[engine]")

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DemoFrame } from '@samplerealm/modules/demo/DemoFrame.tsx';
 import { instantiateEngine, loadEngine, readJson, startWorklet } from '@samplerealm/modules/demo/engine.ts';
@@ -96,6 +96,29 @@ function usePlayer(audio: Audio | null, backend: MeterWorkletBackend | undefined
   return { playing, toggle: playing ? pause : play };
 }
 
+// Heights that show off the resizing: the default, a tall row of panels, and Source/shared/EditorSize.h's shortest
+const SIZES = [
+  { name: 'FULL', height: EDITOR_HEIGHT },
+  { name: 'HALF', height: 400 },
+  { name: 'STRIP', height: 220 },
+];
+
+// Scaled under 60%, a strip is too small to read
+const RESIZE_QUERY = `(min-width: ${EDITOR_WIDTH * 0.6}px)`;
+
+const BUTTON = 'h-7 cursor-pointer border border-line bg-background text-fg disabled:cursor-default disabled:opacity-50';
+
+function useMediaQuery(query: string) {
+  return useSyncExternalStore(
+    (changed) => {
+      const list = matchMedia(query);
+      list.addEventListener('change', changed);
+      return () => list.removeEventListener('change', changed);
+    },
+    () => matchMedia(query).matches
+  );
+}
+
 function Demo() {
   const [engine, setEngine] = useState<{ backend: MeterWorkletBackend; wasm: ArrayBuffer } | null>(null);
   const [audio, setAudio] = useState<Audio | null>(null);
@@ -136,23 +159,41 @@ function Demo() {
 
   useEffect(() => () => void context.current?.close(), []);
 
+  const canResize = useMediaQuery(RESIZE_QUERY);
+  const [chosenHeight, setChosenHeight] = useState(EDITOR_HEIGHT);
+  const height = canResize ? chosenHeight : EDITOR_HEIGHT;
+
+  // The frame keeps its full height, so the page around it doesn't move: the editor shrinks inside its outline
+  const editor = engine && (
+    <div className={`size-full rounded-xl ${height < EDITOR_HEIGHT ? 'outline-1 -outline-offset-1 outline-line outline-dashed' : ''}`}>
+      <div className="overflow-hidden rounded-xl transition-[height] duration-300" style={{ height }}>
+        <Editor backend={engine.backend} />
+      </div>
+    </div>
+  );
+
   return (
-    <DemoFrame
-      width={EDITOR_WIDTH}
-      height={EDITOR_HEIGHT}
-      status={failed ? 'failed' : audio ? 'ready' : 'loading'}
-      editor={engine && <Editor backend={engine.backend} />}
-    >
-      <button
-        type="button"
-        className="mt-2.5 h-7 w-20 cursor-pointer border border-line bg-background text-fg disabled:cursor-default disabled:opacity-50"
-        style={{ fontSize: juceHeight(15) }}
-        disabled={!audio}
-        aria-pressed={player.playing}
-        onClick={player.toggle}
-      >
-        {player.playing ? 'PAUSE' : 'PLAY'}
-      </button>
+    <DemoFrame width={EDITOR_WIDTH} height={EDITOR_HEIGHT} status={failed ? 'failed' : audio ? 'ready' : 'loading'} editor={editor}>
+      <div className="mt-2.5 flex justify-between" style={{ fontSize: juceHeight(15) }}>
+        <button type="button" className={`${BUTTON} w-20`} disabled={!audio} aria-pressed={player.playing} onClick={player.toggle}>
+          {player.playing ? 'PAUSE' : 'PLAY'}
+        </button>
+        {canResize && (
+          <div className="flex gap-1.5" role="group" aria-label="Editor size">
+            {SIZES.map((size) => (
+              <button
+                key={size.name}
+                type="button"
+                className={`${BUTTON} w-16 aria-pressed:border-thumb aria-pressed:text-thumb`}
+                aria-pressed={size.height === height}
+                onClick={() => setChosenHeight(size.height)}
+              >
+                {size.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </DemoFrame>
   );
 }

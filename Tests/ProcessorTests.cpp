@@ -22,9 +22,13 @@ TEST_CASE_METHOD (ProcessorFixture, "Parameters match the snapshot hosts rely on
     };
 
     const std::vector<Expected> snapshot {
-        { "theme", 1, "Theme", "", 0.0f, 4.0f, 1.0f, 1.0f, 0.0f, { "Neon", "Phosphor", "Ice" } },
+        { "theme", 1, "Theme", "", 0.0f, 5.0f, 1.0f, 1.0f, 0.0f, { "Neon", "Phosphor", "Custom" } },
         { "reactivity", 1, "Reactivity", "", 0.0f, 2.0f, 1.0f, 1.0f, 2.0f, { "Off", "Subtle", "Full" } },
-        { "view", 1, "View", "", 0.0f, 3.0f, 1.0f, 1.0f, 0.0f, { "Dashboard", "Stereo", "Loudness" } },
+        { "view", 1, "View", "", 0.0f, 4.0f, 1.0f, 1.0f, 0.0f, { "Dashboard", "Stereo", "Waveform" } },
+        { "showSpectrum", 1, "Show Spectrum", "", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, { "Off", "On", "On" } },
+        { "showWaveform", 1, "Show Waveform", "", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, { "Off", "On", "On" } },
+        { "showStereo", 1, "Show Stereo", "", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, { "Off", "On", "On" } },
+        { "showLoudness", 1, "Show Loudness", "", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, { "Off", "On", "On" } },
     };
 
     const auto& parameters = processor.getParameters();
@@ -135,6 +139,33 @@ TEST_CASE_METHOD (ProcessorFixture, "State round trips into a new instance, with
 
     // Kept by the processor, not left where a saved preset would pick it up
     CHECK_FALSE (restored.getAPVTS().state.hasProperty ("editorWidth"));
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "The custom theme is saved with the session", "[state]")
+{
+    const Themes::Custom custom { 2, 0x112233, 0x445566, 0x778899 };
+    processor.setCustomTheme (custom);
+
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
+
+    AudioPluginAudioProcessor restored;
+    CHECK (restored.getCustomTheme() == Themes::Custom {});
+
+    restored.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+    CHECK (restored.getCustomTheme() == custom);
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "A custom theme that isn't valid in the state keeps its defaults", "[state]")
+{
+    juce::ValueTree tree (CustomThemeState::type);
+    tree.setProperty (CustomThemeState::baseProp, 99, nullptr);
+    tree.setProperty (CustomThemeState::primaryProp, "not a colour", nullptr);
+    tree.setProperty (CustomThemeState::hotProp, "00FF80", nullptr);
+    processor.getAPVTS().state.appendChild (tree, nullptr);
+
+    const Themes::Custom defaults;
+    CHECK (processor.getCustomTheme() == Themes::Custom { Themes::customIndex - 1, defaults.primary, defaults.secondary, 0x00ff80 });
 }
 
 TEST_CASE_METHOD (ProcessorFixture, "The editor's size stays within its limits, and a preset doesn't change it", "[state]")

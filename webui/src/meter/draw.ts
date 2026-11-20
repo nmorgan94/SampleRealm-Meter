@@ -1,4 +1,4 @@
-// Mirrors the paint functions of Source/ui/meter: MeterPanel, SpectrumView, StereoFieldView and LoudnessView
+// Mirrors the paint functions of Source/ui/meter: MeterPanel, SpectrumView, StereoFieldView, LoudnessView and WaveformView
 import { juceHeight } from '@samplerealm/modules/editor/fonts.ts';
 import type { Scales } from '../backend.ts';
 import { bottom, right, type Rect } from './rect.ts';
@@ -7,7 +7,7 @@ import { strokeGlow } from './glow.ts';
 import { acrossSpectrum, proportion } from './scales.ts';
 import { clipsText, hasReading, loudnessText, truePeakText } from './text.ts';
 import { colour, type Look } from './theme.ts';
-import { BAR_LABEL_HEIGHT, contentBounds, expandButtonBounds, loudnessLayout, PANEL_CORNER, PANEL_INSET, PANEL_TITLE_HEIGHT, SCOPE_MARGIN, spectrumPlot, stereoLayout } from './viewLayout.ts';
+import { BAR_LABEL_HEIGHT, contentBounds, expandButtonBounds, loudnessLayout, PANEL_CORNER, PANEL_INSET, PANEL_TITLE_HEIGHT, SCOPE_MARGIN, SPECTRUM_LABEL_SPACING, spectrumPlot, stereoLayout, waveformColumnX } from './viewLayout.ts';
 
 type Context = CanvasRenderingContext2D;
 
@@ -44,6 +44,13 @@ function roundedRect(ctx: Context | Path2D, { left, top, width, height }: Rect, 
   ctx.closePath();
 }
 
+// g.reduceClipRegion with getSmallestIntegerContainer. The caller saves and restores
+function clipTo(ctx: Context, area: Rect) {
+  ctx.beginPath();
+  ctx.rect(Math.floor(area.left), Math.floor(area.top), Math.ceil(right(area)) - Math.floor(area.left), Math.ceil(bottom(area)) - Math.floor(area.top));
+  ctx.clip();
+}
+
 function fillRounded(ctx: Context, bounds: Rect, radius: number) {
   ctx.beginPath();
   roundedRect(ctx, bounds, radius);
@@ -52,7 +59,7 @@ function fillRounded(ctx: Context, bounds: Rect, radius: number) {
 
 //==============================================================================
 // MeterPanel::paint, but for what's inside
-export function drawPanel(ctx: Context, panel: Rect, title: string, expanded: boolean, look: Look) {
+export function drawPanel(ctx: Context, panel: Rect, title: string, expanded: boolean, expandable: boolean, look: Look) {
   const { theme } = look;
 
   ctx.fillStyle = colour(theme.panel);
@@ -69,6 +76,8 @@ export function drawPanel(ctx: Context, panel: Rect, title: string, expanded: bo
   ctx.fillStyle = colour(theme.dim);
   ctx.font = font(11, true);
   drawText(ctx, title, { left: panel.left + PANEL_INSET, top: panel.top, width: panel.width - 2 * PANEL_INSET, height: PANEL_TITLE_HEIGHT + 4 }, 'left');
+
+  if (!expandable) return;
 
   // Two corners, pointing out to expand and in to go back
   const button = expandButtonBounds(panel);
@@ -151,7 +160,16 @@ export function drawSpectrum(ctx: Context, scene: Scene, area: Rect) {
   if (!look.capture) {
     ctx.fillStyle = colour(theme.dim);
     ctx.font = font(10);
-    scales.spectrumGridHz.forEach((hz, i) => drawText(ctx, scales.spectrumGridLabels[i], { left: xOf(hz) - 20, top: labels.top, width: 40, height: labels.height }, 'center'));
+
+    // In a narrow plot, only the labels that don't run into the one before
+    let lastLabelX = plot.left - SPECTRUM_LABEL_SPACING;
+
+    scales.spectrumGridHz.forEach((hz, i) => {
+      if (xOf(hz) - lastLabelX < SPECTRUM_LABEL_SPACING) return;
+      lastLabelX = xOf(hz);
+      drawText(ctx, scales.spectrumGridLabels[i], { left: xOf(hz) - 20, top: labels.top, width: 40, height: labels.height }, 'center');
+    });
+
     for (const db of scales.spectrumGridDb) drawText(ctx, `${db}`, { left: plot.left + 4, top: yOf(db) + 1, width: 40, height: 12 }, 'left');
   }
 
@@ -163,9 +181,7 @@ export function drawSpectrum(ctx: Context, scene: Scene, area: Rect) {
   fill.closePath();
 
   ctx.save();
-  ctx.beginPath();
-  ctx.rect(Math.floor(plot.left), Math.floor(plot.top), Math.ceil(right(plot)) - Math.floor(plot.left), Math.ceil(bottom(plot)) - Math.floor(plot.top));
-  ctx.clip();
+  clipTo(ctx, plot);
 
   const down = ctx.createLinearGradient(0, plot.top, 0, bottom(plot));
   down.addColorStop(0, colour(theme.primary, 0.42 + 0.2 * amount));
@@ -431,8 +447,8 @@ export function drawLoudness(ctx: Context, scene: Scene, area: Rect) {
     for (const tick of scales.levelTicks) drawText(ctx, `${tick}`, { left: layout.scale.left, top: yOf(tick) - 6, width: layout.scale.width, height: 12 }, 'right');
   }
 
-  drawLevelBar(ctx, scene, layout.bars[0], 'MOM', value('momentary'), false);
-  drawLevelBar(ctx, scene, layout.bars[1], 'ST', value('shortTerm'), false);
+  drawLevelBar(ctx, scene, layout.bars[0], layout.compact ? 'M' : 'MOM', value('momentary'), false);
+  drawLevelBar(ctx, scene, layout.bars[1], layout.compact ? 'S' : 'ST', value('shortTerm'), false);
   drawLevelBar(ctx, scene, layout.bars[2], 'L', value('truePeakLeft'), true);
   drawLevelBar(ctx, scene, layout.bars[3], 'R', value('truePeakRight'), true);
 
@@ -445,9 +461,17 @@ export function drawLoudness(ctx: Context, scene: Scene, area: Rect) {
   }
 
   const paused = value('integrating') < 0.5;
+  const text = colour(theme.text);
+
+  if (layout.compact) {
+    drawReading(ctx, look, layout.integrated, paused ? 'INT - PAUSED' : 'INT LUFS', loudnessText(integrated, noLoudness), colour(theme.primary), 40);
+    drawReading(ctx, look, layout.cells.shortTerm, 'SHORT', loudnessText(value('shortTerm'), noLoudness), text, 40);
+    drawReading(ctx, look, layout.cells.truePeak, 'TP MAX', truePeakText(value('maxTruePeak'), noLoudness), value('maxTruePeak') > 0 ? colour(theme.hot) : text, 40);
+    return;
+  }
+
   drawReading(ctx, look, layout.integrated, paused ? 'INTEGRATED LUFS - PAUSED' : 'INTEGRATED LUFS', loudnessText(integrated, noLoudness), colour(theme.primary), 96);
 
-  const text = colour(theme.text);
   const hot = colour(theme.hot);
   const { cells } = layout;
 
@@ -456,4 +480,50 @@ export function drawLoudness(ctx: Context, scene: Scene, area: Rect) {
   drawReading(ctx, look, cells.range, 'RANGE LU', loudnessText(value('range'), noLoudness), text, 40);
   drawReading(ctx, look, cells.truePeak, 'TRUE PEAK MAX', truePeakText(value('maxTruePeak'), noLoudness), value('maxTruePeak') > 0 ? hot : text, 40);
   drawReading(ctx, look, cells.clips, 'CLIPS', clipsText(value('clipCount')), value('clipCount') > 0 ? hot : text, 40);
+}
+
+//==============================================================================
+// WaveformView::shape: one band's peaks, mirrored about the middle
+function waveformShape({ frame, reader }: Scene, plot: Rect, band: number): Path2D {
+  const { numColumns, waveformBands } = reader.layout;
+  const phase = reader.scalar(frame, 'waveformPhase');
+  const half = plot.height / 2;
+  const centre = plot.top + half;
+
+  const reach = (column: number) => half * Math.min(1, frame[reader.waveformOffset + waveformBands * column + band]);
+  const x = (column: number) => waveformColumnX(plot, column, phase, numColumns);
+
+  // The first and last columns reach out to the plot's edges, which the phase leaves them short of
+  const path = new Path2D();
+  path.moveTo(plot.left, centre - reach(0));
+  for (let column = 0; column < numColumns; column++) path.lineTo(x(column), centre - reach(column));
+  path.lineTo(right(plot), centre - reach(numColumns - 1));
+  path.lineTo(right(plot), centre + reach(numColumns - 1));
+  for (let column = numColumns - 1; column >= 0; column--) path.lineTo(x(column), centre + reach(column));
+  path.lineTo(plot.left, centre + reach(0));
+  path.closePath();
+  return path;
+}
+
+// WaveformView::paintContent
+export function drawWaveform(ctx: Context, scene: Scene, area: Rect) {
+  const { theme } = scene.look;
+  const amount = glowAmount(scene);
+
+  // The middle line brightens with the beat
+  ctx.fillStyle = colour(theme.line, 0.55 + 0.45 * amount);
+  ctx.fillRect(area.left, area.top + area.height / 2 - 0.5, area.width, 1);
+
+  ctx.save();
+  clipTo(ctx, area);
+
+  // The lows at the back, where they're the tallest, and the highs in front
+  ctx.fillStyle = colour(theme.primary, 0.7 + 0.3 * amount);
+  ctx.fill(waveformShape(scene, area, 0));
+  ctx.fillStyle = colour(theme.secondary, 0.85);
+  ctx.fill(waveformShape(scene, area, 1));
+  ctx.fillStyle = colour(theme.text, 0.9);
+  ctx.fill(waveformShape(scene, area, 2));
+
+  ctx.restore();
 }

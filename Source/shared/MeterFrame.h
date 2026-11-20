@@ -5,7 +5,8 @@
 //==============================================================================
 /**
  * What the meter shows at one moment, as one flat array of floats: the scalars, then the
- * spectrum's bands, its held peaks, then the goniometer's points as x, y pairs.
+ * spectrum's bands, its held peaks, the goniometer's points as x, y pairs, then the
+ * waveform's columns, the oldest first.
  * MeterEngine fills it; the editors only draw it. meterInfoJson() tells the web UI this layout.
  */
 namespace MeterFrame
@@ -24,21 +25,27 @@ namespace MeterFrame
         balance,        // -1, all left, to 1
         pulse,          // 0 to 1, up on each low hit
         integrating,    // 1 while the integrated loudness is counting
+        waveformPhase,  // 0 to 1: how much of the waveform's next column has been heard
         numScalars
     };
 
     inline constexpr std::array<const char*, numScalars> scalarNames {
         "momentary", "shortTerm", "integrated", "range", "truePeakLeft", "truePeakRight", "maxTruePeak",
-        "clipCount", "correlation", "balance", "pulse", "integrating"
+        "clipCount", "correlation", "balance", "pulse", "integrating", "waveformPhase"
     };
 
     inline constexpr int numBands = 96;
     inline constexpr int numPoints = 256;
 
+    // The waveform: a low, a mid and a high peak for each column, from 0 to about 1
+    inline constexpr int numColumns = 480;
+    inline constexpr int waveformBands = 3;
+
     inline constexpr int bandsOffset = numScalars;
     inline constexpr int peaksOffset = bandsOffset + numBands;
     inline constexpr int pointsOffset = peaksOffset + numBands;
-    inline constexpr int size = pointsOffset + 2 * numPoints;
+    inline constexpr int waveformOffset = pointsOffset + 2 * numPoints;
+    inline constexpr int size = waveformOffset + waveformBands * numColumns;
 
     using Data = std::array<float, size>;
 

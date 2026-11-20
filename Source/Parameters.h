@@ -15,4 +15,9 @@ namespace Parameters
     inline const juce::ParameterID themeId      { ParameterSpecs::theme.id, versionHint };
     inline const juce::ParameterID reactivityId { ParameterSpecs::reactivity.id, versionHint };
     inline const juce::ParameterID viewId       { ParameterSpecs::view.id, versionHint };
+
+    inline const juce::ParameterID showSpectrumId { ParameterSpecs::showSpectrum.id, versionHint };
+    inline const juce::ParameterID showWaveformId { ParameterSpecs::showWaveform.id, versionHint };
+    inline const juce::ParameterID showStereoId   { ParameterSpecs::showStereo.id, versionHint };
+    inline const juce::ParameterID showLoudnessId { ParameterSpecs::showLoudness.id, versionHint };
 }

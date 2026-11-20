@@ -41,6 +41,12 @@ void Dashboard::setView (int newView, bool animate)
     layOut();
 }
 
+void Dashboard::setShown (const DashboardLayout::Shown& newShown)
+{
+    if (std::exchange (shown, newShown) != newShown)
+        layOut();
+}
+
 void Dashboard::setFrame (const MeterFrame::Data& frame, double seconds)
 {
     const auto target = view == dashboardView ? 0.0f : 1.0f;
@@ -65,16 +71,18 @@ void Dashboard::resized()
 void Dashboard::layOut()
 {
     const auto eased = DashboardLayout::ease (expansion);
-    const auto bounds = DashboardLayout::expanding (getLocalBounds(), expanded, eased);
+    const auto bounds = DashboardLayout::expanding (getLocalBounds(), shown, expanded, eased);
+    const auto expandable = view != dashboardView || std::count (shown.begin(), shown.end(), true) > 1;
 
     for (size_t i = 0; i < panels.size(); ++i)
     {
         auto& panel = *panels[i];
-        const auto isExpanded = i == static_cast<size_t> (expanded);
+        const auto isExpanded = i == static_cast<size_t> (expanded) && expansion > 0.0f;
 
         panel.setBounds (bounds[i]);
+        panel.setExpandable (expandable);
         panel.setAlpha (isExpanded ? 1.0f : 1.0f - eased);
-        panel.setVisible (isExpanded || expansion < 1.0f);
+        panel.setVisible (isExpanded || (shown[i] && expansion < 1.0f));
 
         if (isExpanded)
             panel.toFront (false);

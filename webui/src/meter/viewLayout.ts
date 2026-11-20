@@ -1,5 +1,5 @@
 // Mirrors the layOut functions of Source/ui/meter's views and MeterPanel's bounds, with the same tests
-import { bottom, right, type Rect } from './rect.ts';
+import { bottom, EMPTY, right, type Rect } from './rect.ts';
 
 // MeterPanel
 export const PANEL_INSET = 12;
@@ -24,8 +24,14 @@ export const expandButtonBounds = (panel: Rect): Rect => ({
 //==============================================================================
 // SpectrumView
 export const SPECTRUM_LABEL_HEIGHT = 16;
+export const SPECTRUM_LABEL_SPACING = 30;
 
 export const spectrumPlot = (area: Rect): Rect => ({ ...area, height: area.height - SPECTRUM_LABEL_HEIGHT });
+
+//==============================================================================
+// WaveformView::columnX: where a column is across the plot, the newest at its right edge. The phase, how much of
+// the next column has been heard, moves them all left by up to a column
+export const waveformColumnX = (plot: Rect, column: number, phase: number, numColumns: number) => plot.left + (plot.width * (column + 1 - phase)) / numColumns;
 
 //==============================================================================
 // StereoFieldView
@@ -81,14 +87,22 @@ export interface LoudnessLayout {
   scale: Rect;
   integrated: Rect;
   cells: Record<Cell, Rect>;
+  // With little room: narrower bars, and only the integrated, the short-term and the max true peak
+  compact: boolean;
 }
+
+const COMPACT_BELOW_WIDTH = 330;
+const COMPACT_BELOW_HEIGHT = 112;
+const COMPACT_ACROSS_WIDTH = 270;
 
 export function loudnessLayout(area: Rect): LoudnessLayout {
   const SMALL_GAP = 5;
   const GROUP_GAP = 14;
-  const COLUMN_GAP = 16;
 
-  const barAreaWidth = Math.floor(Math.min(210, Math.max(130, area.width * 0.36)));
+  const compact = area.width < COMPACT_BELOW_WIDTH || area.height < COMPACT_BELOW_HEIGHT;
+  const COLUMN_GAP = compact ? 12 : 16;
+
+  const barAreaWidth = Math.floor(Math.min(compact ? 130 : 210, Math.max(compact ? 96 : 130, area.width * 0.36)));
   const scale: Rect = { left: area.left, top: area.top, width: SCALE_WIDTH, height: area.height - BAR_LABEL_HEIGHT };
 
   const barsLeft = area.left + SCALE_WIDTH + SMALL_GAP;
@@ -102,6 +116,16 @@ export function loudnessLayout(area: Rect): LoudnessLayout {
   }
 
   const readings: Rect = { left: area.left + barAreaWidth + COLUMN_GAP, top: area.top, width: area.width - barAreaWidth - COLUMN_GAP, height: area.height };
+
+  if (compact) {
+    // Side by side where each has the width for its number, and otherwise one over the next
+    const across = readings.width >= COMPACT_ACROSS_WIDTH;
+    const size = Math.floor((across ? readings.width : readings.height) / 3);
+    const at = (i: number): Rect => (across ? { ...readings, left: readings.left + i * size, width: size } : { ...readings, top: readings.top + i * size, height: size });
+
+    return { bars, scale, integrated: at(0), cells: { momentary: EMPTY, shortTerm: at(1), range: EMPTY, truePeak: at(2), clips: EMPTY }, compact };
+  }
+
   const integratedHeight = Math.floor(readings.height * 0.46);
   const grid = { left: readings.left, top: readings.top + integratedHeight, width: readings.width, height: readings.height - integratedHeight };
   const cellWidth = Math.floor(grid.width / 3);
@@ -111,5 +135,5 @@ export function loudnessLayout(area: Rect): LoudnessLayout {
     CELLS.map((cell, i) => [cell, { left: grid.left + cellWidth * (i % 3), top: grid.top + cellHeight * Math.trunc(i / 3), width: cellWidth, height: cellHeight }])
   ) as Record<Cell, Rect>;
 
-  return { bars, scale, integrated: { ...readings, height: integratedHeight }, cells };
+  return { bars, scale, integrated: { ...readings, height: integratedHeight }, cells, compact };
 }

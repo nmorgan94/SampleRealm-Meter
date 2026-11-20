@@ -18,6 +18,12 @@ void MeterPanel::setExpanded (bool shouldBeExpanded)
         repaint();
 }
 
+void MeterPanel::setExpandable (bool shouldBeExpandable)
+{
+    if (std::exchange (expandable, shouldBeExpandable) != shouldBeExpandable)
+        repaint();
+}
+
 void MeterPanel::setFrame (const MeterFrame::Data& newFrame, double seconds)
 {
     // A stopped or silent meter soon shows the same frame every time
@@ -53,7 +59,10 @@ void MeterPanel::paint (juce::Graphics& g)
         g.setColour (look.theme.dim);
         g.setFont (font (11.0f, true));
         g.drawText (getTitle(), getLocalBounds().reduced (inset, 0).withHeight (titleHeight + 4), juce::Justification::centredLeft);
+    }
 
+    if (! look.capture && expandable)
+    {
         // Two corners, pointing out to expand and in to go back
         const auto button = getExpandButtonBounds().toFloat();
         const auto centre = button.getCentre();
@@ -92,12 +101,12 @@ void MeterPanel::paint (juce::Graphics& g)
 
 void MeterPanel::mouseUp (const juce::MouseEvent& event)
 {
-    if (! look.capture && event.mouseWasClicked() && getExpandButtonBounds().contains (event.getPosition()) && onToggleExpand != nullptr)
+    if (! look.capture && expandable && event.mouseWasClicked() && getExpandButtonBounds().contains (event.getPosition()) && onToggleExpand != nullptr)
         onToggleExpand();
 }
 
 void MeterPanel::mouseDoubleClick (const juce::MouseEvent& event)
 {
-    if (! getExpandButtonBounds().contains (event.getPosition()) && onToggleExpand != nullptr)
+    if (expandable && ! getExpandButtonBounds().contains (event.getPosition()) && onToggleExpand != nullptr)
         onToggleExpand();
 }

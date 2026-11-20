@@ -17,10 +17,12 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                      #endif
                        )
 {
+    apvts.state.addListener (this);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 {
+    apvts.state.removeListener (this);
 }
 
 PresetManager::Config AudioPluginAudioProcessor::createPresetConfig()
@@ -186,6 +188,49 @@ void AudioPluginAudioProcessor::setEditorSize (int width, int height) noexcept
 {
     editorWidth = juce::jlimit (EditorSize::minWidth, EditorSize::maxWidth, width);
     editorHeight = juce::jlimit (EditorSize::minHeight, EditorSize::maxHeight, height);
+}
+
+Themes::Custom AudioPluginAudioProcessor::getCustomTheme() const
+{
+    const juce::SpinLock::ScopedLockType lock (customThemeLock);
+    return customTheme;
+}
+
+void AudioPluginAudioProcessor::copyCustomTheme()
+{
+    const auto custom = CustomThemeState::read (apvts.state);
+
+    const juce::SpinLock::ScopedLockType lock (customThemeLock);
+    customTheme = custom;
+}
+
+void AudioPluginAudioProcessor::valueTreeChildAdded (juce::ValueTree&, juce::ValueTree& child)
+{
+    if (child.hasType (CustomThemeState::type))
+        copyCustomTheme();
+}
+
+void AudioPluginAudioProcessor::valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree& child, int)
+{
+    if (child.hasType (CustomThemeState::type))
+        copyCustomTheme();
+}
+
+void AudioPluginAudioProcessor::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier&)
+{
+    if (tree.hasType (CustomThemeState::type))
+        copyCustomTheme();
+}
+
+void AudioPluginAudioProcessor::setCustomTheme (Themes::Custom custom)
+{
+    if (custom == getCustomTheme())
+        return;
+
+    CustomThemeState::write (apvts.state, custom);
+
+    // The preset manager hears this as an edit to the look
+    updateHostDisplay (ChangeDetails{}.withNonParameterStateChanged (true));
 }
 
 void AudioPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)

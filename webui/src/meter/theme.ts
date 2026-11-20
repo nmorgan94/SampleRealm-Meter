@@ -1,7 +1,43 @@
 // The palettes come from Source/shared/Themes.h in the UI info, as "rrggbb"
-import type { ThemeColours } from '../backend.ts';
+import { listenerSet } from '@samplerealm/modules/backend.ts';
+import type { CustomTheme, ThemeColours } from '../backend.ts';
 
 export type Theme = ThemeColours;
+
+// The custom theme a backend holds, and those listening for it
+export function customThemeStore(initial: CustomTheme) {
+  let custom = initial;
+  const listeners = listenerSet<[CustomTheme]>();
+
+  return {
+    customTheme: () => custom,
+    onCustomTheme: listeners.add,
+    show: (theme: CustomTheme) => {
+      custom = theme;
+      listeners.notify(theme);
+    },
+  };
+}
+
+// Themes::fromHex: six hex digits in either case, with or without a "#" before them
+export const parseHex = (text: string): string | null => /^#?([0-9a-fA-F]{6})$/.exec(text)?.[1].toLowerCase() ?? null;
+
+// Themes::paletteOf: the theme for a value of the theme parameter, which after the built-in ones is the custom one
+export const themeOf = (themes: Theme[], index: number, custom: CustomTheme): Theme =>
+  Math.round(index) < themes.length ? choiceAt(themes, index) : { ...choiceAt(themes, custom.base), primary: custom.primary, secondary: custom.secondary, hot: custom.hot };
+
+// CustomThemeState::from: anything missing or that isn't a colour keeps its default
+export function sanitiseCustomTheme(value: Partial<Record<keyof CustomTheme, unknown>> | undefined, defaults: CustomTheme, numThemes: number): CustomTheme {
+  const base = Number(value?.base);
+  const colour = (name: 'primary' | 'secondary' | 'hot') => (typeof value?.[name] === 'string' ? parseHex(value[name]) : null) ?? defaults[name];
+
+  return {
+    base: value?.base === undefined || !Number.isFinite(base) ? defaults.base : Math.min(numThemes - 1, Math.max(0, Math.trunc(base))),
+    primary: colour('primary'),
+    secondary: colour('secondary'),
+    hot: colour('hot'),
+  };
+}
 
 // Mirrors MeterLook in Source/ui/meter/MeterLook.h
 export interface Look {

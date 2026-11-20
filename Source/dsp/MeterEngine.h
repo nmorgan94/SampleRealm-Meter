@@ -6,6 +6,7 @@
 #include "SpectrumAnalyser.h"
 #include "StereoField.h"
 #include "TruePeak.h"
+#include "WaveformHistory.h"
 #include "../shared/MeterFrame.h"
 #include <samplerealm/Transport.h>
 #include <vector>
@@ -87,6 +88,7 @@ private:
     SpectrumAnalyser spectrum;
     StereoField stereo;
     BeatPulse beat;
+    WaveformHistory waveform;
     double readerRate = 0.0;
     double idleFor = 0.0;
     bool idle = false;

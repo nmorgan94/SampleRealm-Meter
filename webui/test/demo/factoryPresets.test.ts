@@ -15,12 +15,15 @@ const factoryPresets = readdirSync(presetFolder)
 const FACTORY_NAMES = ['Ember Pulse', 'Ice Subtle', 'Phosphor Calm', 'Ember Loudness', 'Phosphor Scope', 'Ultraviolet Spectrum'];
 
 test('factory presets load into the engine in the plugin\'s order', async () => {
-  const { presets, getValue, param } = workletBackend(info, { storageKey: 'test-presets', factoryPresets });
+  const { presets, getValue, setValue, param } = workletBackend(info, { storageKey: 'test-presets', factoryPresets });
   const list = await presets.list();
   assert.deepEqual(list.map((preset) => preset.name), FACTORY_NAMES);
 
+  setValue('showWaveform', 0);
   await presets.load(list.find((preset) => preset.name === 'Ultraviolet Spectrum')!);
   assert.equal(getValue('theme'), 3);
+  // The factory looks don't say which panels to show, so they show them all
+  assert.equal(getValue('showWaveform'), 1);
   assert.equal(getValue('reactivity'), 2);
   assert.equal(getValue('view'), 1);
 

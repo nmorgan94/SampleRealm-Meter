@@ -19,6 +19,9 @@ juce::AudioProcessorEditor* createMeterWebView (AudioPluginAudioProcessor& proce
     // Read first: the editor stores its size as it opens
     const auto size = processor.getEditorSize();
 
+    // The custom theme the page has, so only a change made elsewhere, such as a look loading, is sent to it
+    const auto customThemeSent = std::make_shared<Themes::Custom> (processor.getCustomTheme());
+
     return new WebViewEditor (processor, {
         .specs = ParameterSpecs::all,
         .parameters = processor.getAPVTS(),
@@ -27,7 +30,7 @@ juce::AudioProcessorEditor* createMeterWebView (AudioPluginAudioProcessor& proce
         .height = size.y,
         // The first theme's, until the page draws its own
         .background = MeterTheme::of (0).background,
-        .onTick = [&processor,
+        .onTick = [&processor, customThemeSent,
                    lastFrameTime = juce::Time::getMillisecondCounterHiRes(),
                    lastFrameSent = MeterFrame::Data {},
                    framesUnsent = 0] (const WebViewEditor::EmitEvent& emit) mutable
@@ -38,6 +41,12 @@ juce::AudioProcessorEditor* createMeterWebView (AudioPluginAudioProcessor& proce
             // The page was opening or hidden: what played meanwhile isn't shown
             if (seconds > MeterEngine::maxFrameSeconds)
                 processor.getMeterEngine().discardPending();
+
+            if (const auto custom = processor.getCustomTheme(); custom != *customThemeSent)
+            {
+                *customThemeSent = custom;
+                emit ("customTheme", CustomThemeState::toVar (custom));
+            }
 
             const auto& frame = processor.getMeterEngine().updateFrame (seconds);
 
@@ -52,10 +61,21 @@ juce::AudioProcessorEditor* createMeterWebView (AudioPluginAudioProcessor& proce
                 emit ("frame", juce::Base64::toBase64 (frame.data(), frame.size() * sizeof (float)));
             }
         },
-        .withOptions = [&processor] (juce::WebBrowserComponent::Options options)
+        .withOptions = [&processor, customThemeSent] (juce::WebBrowserComponent::Options options)
         {
             return options
                 .withInitialisationData ("meterInfo", juce::String (meterInfoJson()))
+                .withInitialisationData ("customTheme", CustomThemeState::toVar (*customThemeSent))
+                .withNativeFunction ("setCustomTheme", [&processor, customThemeSent] (const juce::Array<juce::var>& args, juce::WebBrowserComponent::NativeFunctionCompletion complete)
+                {
+                    if (! args.isEmpty())
+                    {
+                        *customThemeSent = CustomThemeState::from (args.getReference (0));
+                        processor.setCustomTheme (*customThemeSent);
+                    }
+
+                    complete ({});
+                })
                 .withNativeFunction ("meterReset", [&processor] (const juce::Array<juce::var>&, juce::WebBrowserComponent::NativeFunctionCompletion complete)
                 {
                     processor.getMeterEngine().requestReset();

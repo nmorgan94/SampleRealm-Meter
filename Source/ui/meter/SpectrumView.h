@@ -9,6 +9,9 @@ class SpectrumView : public MeterPanel
 public:
     static constexpr float labelHeight = 16.0f;
 
+    // The widest frequency label, "10k", and a gap
+    static constexpr float labelSpacing = 30.0f;
+
     explicit SpectrumView (const MeterLook& lookToUse) : MeterPanel ("SPECTRUM", lookToUse) {}
 
     /** Where the curve is drawn within the content. */

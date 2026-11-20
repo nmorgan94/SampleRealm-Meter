@@ -28,6 +28,8 @@ inline std::string meterInfoJson()
     std::string json = "{\"frame\":{\"scalars\":[" + joined (MeterFrame::scalarNames, quoted);
     json += "],\"numBands\":" + std::to_string (MeterFrame::numBands);
     json += ",\"numPoints\":" + std::to_string (MeterFrame::numPoints);
+    json += ",\"numColumns\":" + std::to_string (MeterFrame::numColumns);
+    json += ",\"waveformBands\":" + std::to_string (MeterFrame::waveformBands);
     json += ",\"minHz\":" + number (MeterFrame::minHz) + ",\"maxHz\":" + number (MeterFrame::maxHz);
     json += ",\"noLoudness\":" + number (MeterFrame::noLoudness);
     json += ",\"peakFloorDb\":" + number (MeterFrame::peakFloorDb);
@@ -44,25 +46,24 @@ inline std::string meterInfoJson()
     json += "],\"expandSeconds\":" + number (static_cast<float> (MeterScales::expandSeconds));
     json += ",\"traceFadeSeconds\":" + number (static_cast<float> (MeterScales::traceFadeSeconds)) + "},\"themes\":[";
 
-    // Each theme's colours as "rrggbb", by Themes::colourNames
+    // Each built-in theme's colours as "rrggbb", by Themes::colourNames
     for (size_t i = 0; i < Themes::all.size(); ++i)
     {
         const auto colours = Themes::coloursOf (Themes::all[i]);
         json += (i == 0 ? "{" : ",{");
 
         for (size_t c = 0; c < colours.size(); ++c)
-        {
-            static constexpr char digits[] = "0123456789abcdef";
-            std::string hex;
-
-            for (int shift = 20; shift >= 0; shift -= 4)
-                hex += digits[(colours[c] >> shift) & 0xf];
-
-            json += (c == 0 ? "" : ",") + quoted (Themes::colourNames[c]) + ":" + quoted (hex.c_str());
-        }
+            json += (c == 0 ? "" : ",") + quoted (Themes::colourNames[c]) + ":" + quoted (Themes::toHex (colours[c]).c_str());
 
         json += "}";
     }
 
-    return json + "]}";
+    // The custom theme before the user has changed it
+    const Themes::Custom custom;
+    json += "],\"customTheme\":{\"base\":" + std::to_string (custom.base);
+    json += ",\"primary\":" + quoted (Themes::toHex (custom.primary).c_str());
+    json += ",\"secondary\":" + quoted (Themes::toHex (custom.secondary).c_str());
+    json += ",\"hot\":" + quoted (Themes::toHex (custom.hot).c_str());
+
+    return json + "}}";
 }

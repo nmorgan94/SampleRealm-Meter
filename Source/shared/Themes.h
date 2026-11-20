@@ -2,10 +2,13 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
 #include "ParameterSpecs.h"
 
 //==============================================================================
-/** The editor's palettes, one per ParameterSpecs::themeNames. Colours are 0xRRGGBB. */
+/** The editor's palettes, in the order of ParameterSpecs::themeNames, and the user's own after them. Colours are 0xRRGGBB. */
 namespace Themes
 {
     struct Palette
@@ -20,7 +23,7 @@ namespace Themes
         std::uint32_t hot;          // clips and out-of-phase
     };
 
-    inline constexpr std::array<Palette, ParameterSpecs::themeNames.size()> all {{
+    inline constexpr std::array<Palette, 5> all {{
         { 0x070a14, 0x0c1120, 0x1d2a44, 0xe8f4ff, 0x6f84a8, 0x19e6ff, 0xff2bd6, 0xff3d5a },   // Neon
         { 0x120906, 0x1b0f0a, 0x402418, 0xfff1e2, 0xa88468, 0xffa31a, 0xff4d2e, 0xff2a2a },   // Ember
         { 0x040d08, 0x08160e, 0x163a26, 0xe4ffe9, 0x6aa07c, 0x3dff7a, 0xc8ff3d, 0xff5a3d },   // Phosphor
@@ -36,5 +39,78 @@ namespace Themes
     constexpr std::array<std::uint32_t, 8> coloursOf (const Palette& p)
     {
         return { p.background, p.panel, p.line, p.text, p.dim, p.primary, p.secondary, p.hot };
+    }
+
+    //==============================================================================
+    // The theme after the built-in ones is the user's own
+    inline constexpr int customIndex = static_cast<int> (all.size());
+    static_assert (ParameterSpecs::themeNames.size() == all.size() + 1);
+
+    /** The user's own theme: one of the built-in palettes with its three accents changed. */
+    struct Custom
+    {
+        int base = 0;
+        std::uint32_t primary = all[0].primary, secondary = all[0].secondary, hot = all[0].hot;
+
+        bool operator== (const Custom&) const = default;
+    };
+
+    /** A built-in palette, kept within the list. */
+    constexpr const Palette& builtIn (int index)
+    {
+        return all[static_cast<size_t> (index < 0 ? 0 : index >= customIndex ? customIndex - 1 : index)];
+    }
+
+    /** The palette for a value of the theme parameter. */
+    constexpr Palette paletteOf (int theme, const Custom& custom)
+    {
+        if (theme < customIndex)
+            return builtIn (theme);
+
+        auto palette = builtIn (custom.base);
+        palette.primary = custom.primary;
+        palette.secondary = custom.secondary;
+        palette.hot = custom.hot;
+        return palette;
+    }
+
+    //==============================================================================
+    /** A colour as "rrggbb", as saved and as the web UI has it. */
+    inline std::string toHex (std::uint32_t colour)
+    {
+        static constexpr char digits[] = "0123456789abcdef";
+        std::string hex;
+
+        for (int shift = 20; shift >= 0; shift -= 4)
+            hex += digits[(colour >> shift) & 0xf];
+
+        return hex;
+    }
+
+    /** From six hex digits in either case, with or without a "#" before them. */
+    inline std::optional<std::uint32_t> fromHex (std::string_view text)
+    {
+        if (! text.empty() && text.front() == '#')
+            text.remove_prefix (1);
+
+        if (text.size() != 6)
+            return std::nullopt;
+
+        std::uint32_t colour = 0;
+
+        for (const auto character : text)
+        {
+            const auto digit = character >= '0' && character <= '9' ? character - '0'
+                             : character >= 'a' && character <= 'f' ? character - 'a' + 10
+                             : character >= 'A' && character <= 'F' ? character - 'A' + 10
+                             : -1;
+
+            if (digit < 0)
+                return std::nullopt;
+
+            colour = (colour << 4) | static_cast<std::uint32_t> (digit);
+        }
+
+        return colour;
     }
 }

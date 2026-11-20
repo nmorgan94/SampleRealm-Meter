@@ -11,13 +11,20 @@ namespace
         return *found;
     }
 
-    // To the next choice, and round to the first again
-    void stepChoice (juce::ParameterAttachment& attachment, juce::RangedAudioParameter& choice)
+    struct PanelControl
     {
-        const auto count = choice.getNumSteps();
-        const auto current = juce::roundToInt (choice.convertFrom0to1 (choice.getValue()));
-        attachment.setValueAsCompleteGesture (static_cast<float> ((current + 1) % count));
-    }
+        DashboardLayout::Panel panel;
+        const char* name;
+        const juce::ParameterID& shownId;
+    };
+
+    // In the order the dashboard lays them out, which is the view menu's
+    const std::array<PanelControl, DashboardLayout::numPanels> panelControls { {
+        { DashboardLayout::spectrum, "Spectrum", Parameters::showSpectrumId },
+        { DashboardLayout::waveform, "Waveform", Parameters::showWaveformId },
+        { DashboardLayout::stereo, "Stereo field", Parameters::showStereoId },
+        { DashboardLayout::loudness, "Loudness", Parameters::showLoudnessId },
+    } };
 }
 
 //==============================================================================
@@ -28,7 +35,6 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
       {
           const auto index = static_cast<size_t> (juce::jlimit (0, static_cast<int> (MeterScales::reactivityAmounts.size()) - 1, juce::roundToInt (value)));
           look.reactivity = MeterScales::reactivityAmounts[index];
-          controls.setReactivityName (ParameterSpecs::reactivityNames[index]);
       }),
       viewAttachment (parameter (p, Parameters::viewId), [this] (float value)
       {
@@ -53,8 +59,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     addAndMakeVisible (header);
     addChildComponent (exitCaptureButton);
 
-    controls.themeButton.onClick = [this] { stepChoice (themeAttachment, parameter (processorRef, Parameters::themeId)); };
-    controls.reactivityButton.onClick = [this] { stepChoice (reactivityAttachment, parameter (processorRef, Parameters::reactivityId)); };
+    controls.themeButton.onClick = [this] { themeMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (controls.themeButton)); };
+    controls.viewButton.onClick = [this] { viewMenu().showMenuAsync (juce::PopupMenu::Options().withTargetComponent (controls.viewButton)); };
     controls.resetButton.onClick = [this] { processorRef.getMeterEngine().requestReset(); };
     controls.captureButton.onClick = [this] { setCaptureMode (true); };
     exitCaptureButton.onClick = [this] { setCaptureMode (false); };
@@ -65,8 +71,22 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     reactivityAttachment.sendInitialUpdate();
     viewAttachment.sendInitialUpdate();
 
+    for (const auto& control : panelControls)
+    {
+        auto& attachment = shownAttachments[control.panel];
+
+        attachment = std::make_unique<juce::ParameterAttachment> (parameter (p, control.shownId), [this, panel = control.panel] (float value)
+        {
+            shown[panel] = value >= 0.5f;
+            dashboard.setShown (shown);
+        });
+
+        attachment->sendInitialUpdate();
+    }
+
     addChildComponent (prompt);
     addChildComponent (manual);
+    addChildComponent (customTheme);
 
     // Anywhere in the editor, to bring back the way out of capture mode
     addMouseListener (this, true);
@@ -96,11 +116,85 @@ void AudioPluginAudioProcessorEditor::themeChanged (int theme)
 {
     const auto index = juce::jlimit (0, static_cast<int> (ParameterSpecs::themeNames.size()) - 1, theme);
 
-    look.theme = MeterTheme::of (index);
+    customThemeShown = processorRef.getCustomTheme();
+    look.theme = MeterTheme::of (Themes::paletteOf (index, customThemeShown));
     controls.setThemeName (ParameterSpecs::themeNames[static_cast<size_t> (index)]);
     customLookAndFeel.setTheme (look.theme);
     sendLookAndFeelChange();
     repaint();
+}
+
+void AudioPluginAudioProcessorEditor::customThemeChanged()
+{
+    auto& theme = parameter (processorRef, Parameters::themeId);
+    themeChanged (juce::roundToInt (theme.convertFrom0to1 (theme.getValue())));
+}
+
+void AudioPluginAudioProcessorEditor::addChoices (juce::PopupMenu& menu, const juce::ParameterID& id, juce::ParameterAttachment& attachment)
+{
+    auto& choice = parameter (processorRef, id);
+    const auto current = juce::roundToInt (choice.convertFrom0to1 (choice.getValue()));
+    auto index = 0;
+
+    for (const auto& name : choice.getAllValueStrings())
+    {
+        menu.addItem (juce::PopupMenu::Item (name)
+                          .setTicked (index == current)
+                          .setAction ([safeThis = juce::Component::SafePointer (this), &attachment, index]
+                          {
+                              if (safeThis != nullptr)
+                                  attachment.setValueAsCompleteGesture (static_cast<float> (index));
+                          }));
+        ++index;
+    }
+}
+
+juce::PopupMenu AudioPluginAudioProcessorEditor::themeMenu()
+{
+    juce::PopupMenu menu;
+    menu.setLookAndFeel (&getLookAndFeel());
+    addChoices (menu, Parameters::themeId, themeAttachment);
+    menu.addSeparator();
+
+    menu.addItem (juce::PopupMenu::Item ("Edit custom...")
+                      .setAction ([safeThis = juce::Component::SafePointer (this)]
+                      {
+                          if (safeThis == nullptr)
+                              return;
+
+                          safeThis->themeAttachment.setValueAsCompleteGesture (static_cast<float> (Themes::customIndex));
+                          safeThis->customTheme.show();
+                      }));
+
+    return menu;
+}
+
+juce::PopupMenu AudioPluginAudioProcessorEditor::viewMenu()
+{
+    juce::PopupMenu menu;
+    menu.setLookAndFeel (&getLookAndFeel());
+    menu.addSectionHeader ("Panels");
+
+    const auto numShown = std::count (shown.begin(), shown.end(), true);
+
+    for (const auto& control : panelControls)
+    {
+        const auto isShown = shown[control.panel];
+
+        // The last panel showing stays
+        menu.addItem (juce::PopupMenu::Item (control.name)
+                          .setTicked (isShown)
+                          .setEnabled (! isShown || numShown > 1)
+                          .setAction ([safeThis = juce::Component::SafePointer (this), panel = control.panel, isShown]
+                          {
+                              if (safeThis != nullptr)
+                                  safeThis->shownAttachments[panel]->setValueAsCompleteGesture (isShown ? 0.0f : 1.0f);
+                          }));
+    }
+
+    menu.addSectionHeader ("Reactivity");
+    addChoices (menu, Parameters::reactivityId, reactivityAttachment);
+    return menu;
 }
 
 void AudioPluginAudioProcessorEditor::setCaptureMode (bool shouldCapture)
@@ -119,6 +213,15 @@ void AudioPluginAudioProcessorEditor::setCaptureMode (bool shouldCapture)
 
 void AudioPluginAudioProcessorEditor::showNextFrame (double seconds)
 {
+    // A look or session loading. The custom theme's editor shows its own edits
+    if (processorRef.getCustomTheme() != customThemeShown)
+    {
+        customThemeChanged();
+
+        if (customTheme.isVisible())
+            customTheme.refresh();
+    }
+
     dashboard.setFrame (processorRef.getMeterEngine().updateFrame (seconds), juce::jlimit (0.0, MeterEngine::maxFrameSeconds, seconds));
 }
 

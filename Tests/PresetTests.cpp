@@ -25,6 +25,30 @@ TEST_CASE_METHOD (ProcessorFixture, "The factory presets are embedded and set th
     CHECK_THAT (getParameter (processor, Parameters::viewId), WithinAbs (1.0, 1.0e-4));
 }
 
+TEST_CASE_METHOD (ProcessorFixture, "A look saved before the panels could be hidden shows them all", "[presets]")
+{
+    setParameter (processor, Parameters::showWaveformId, 0.0f);
+
+    // The factory looks don't say which panels to show
+    auto& presets = processor.getPresetManager();
+    REQUIRE (presets.loadPreset (presets.find ("Ember Pulse", true).value()));
+
+    CHECK_THAT (getParameter (processor, Parameters::showWaveformId), WithinAbs (1.0, 1.0e-4));
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "Changing the custom theme is an edit to the look, and Init clears it", "[presets]")
+{
+    auto& presets = processor.getPresetManager();
+    REQUIRE (presets.loadPreset (presets.find ("Ember Pulse", true).value()));
+    CHECK_FALSE (presets.isModified());
+
+    processor.setCustomTheme ({ 1, 0x112233, 0x445566, 0x778899 });
+    CHECK (presets.isModified());
+
+    presets.loadInit();
+    CHECK (processor.getCustomTheme() == Themes::Custom {});
+}
+
 TEST_CASE_METHOD (ProcessorFixture, "A reopened session shows the same preset", "[presets][state]")
 {
     auto& presets = processor.getPresetManager();

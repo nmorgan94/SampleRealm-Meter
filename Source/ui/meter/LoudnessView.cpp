@@ -4,12 +4,16 @@
 
 LoudnessView::Layout LoudnessView::layOut (juce::Rectangle<float> area)
 {
-    constexpr auto smallGap = 5.0f, groupGap = 14.0f, columnGap = 16.0f;
+    constexpr auto smallGap = 5.0f, groupGap = 14.0f;
 
     Layout layout;
+    layout.compact = area.getWidth() < compactBelowWidth || area.getHeight() < compactBelowHeight;
 
-    auto barArea = area.removeFromLeft (std::floor (juce::jlimit (130.0f, 210.0f, area.getWidth() * 0.36f)));
-    area.removeFromLeft (columnGap);
+    const auto narrowest = layout.compact ? 96.0f : 130.0f;
+    const auto widest = layout.compact ? 130.0f : 210.0f;
+
+    auto barArea = area.removeFromLeft (std::floor (juce::jlimit (narrowest, widest, area.getWidth() * 0.36f)));
+    area.removeFromLeft (layout.compact ? 12.0f : 16.0f);
 
     layout.scale = barArea.removeFromLeft (scaleWidth).withTrimmedBottom (barLabelHeight);
     barArea.removeFromLeft (smallGap);
@@ -21,6 +25,18 @@ LoudnessView::Layout LoudnessView::layOut (juce::Rectangle<float> area)
     {
         layout.bars[i] = { x, barArea.getY(), barWidth, barArea.getHeight() };
         x += barWidth + (i == 1 ? groupGap : smallGap);
+    }
+
+    if (layout.compact)
+    {
+        // Side by side where each has the width for its number, and otherwise one over the next
+        const auto across = area.getWidth() >= compactAcrossWidth;
+        const auto size = std::floor ((across ? area.getWidth() : area.getHeight()) / 3.0f);
+
+        for (auto* reading : { &layout.integrated, &layout.cells[shortTerm], &layout.cells[truePeak] })
+            *reading = across ? area.removeFromLeft (size) : area.removeFromTop (size);
+
+        return layout;
     }
 
     layout.integrated = area.removeFromTop (std::floor (area.getHeight() * 0.46f));
@@ -59,8 +75,8 @@ void LoudnessView::paintContent (juce::Graphics& g, juce::Rectangle<float> area)
                         juce::Justification::centredRight, false);
     }
 
-    paintBar (g, layout.bars[0], "MOM", frame[MeterFrame::momentary], false);
-    paintBar (g, layout.bars[1], "ST", frame[MeterFrame::shortTerm], false);
+    paintBar (g, layout.bars[0], layout.compact ? "M" : "MOM", frame[MeterFrame::momentary], false);
+    paintBar (g, layout.bars[1], layout.compact ? "S" : "ST", frame[MeterFrame::shortTerm], false);
     paintBar (g, layout.bars[2], "L", frame[MeterFrame::truePeakLeft], true);
     paintBar (g, layout.bars[3], "R", frame[MeterFrame::truePeakRight], true);
 
@@ -73,11 +89,19 @@ void LoudnessView::paintContent (juce::Graphics& g, juce::Rectangle<float> area)
     }
 
     const auto paused = frame[MeterFrame::integrating] < 0.5f;
-    paintReading (g, layout.integrated, paused ? "INTEGRATED LUFS - PAUSED" : "INTEGRATED LUFS",
-                  MeterText::loudness (frame[MeterFrame::integrated]), theme.primary, 96.0f);
-
     const auto over = frame[MeterFrame::maxTruePeak] > 0.0f;
     const auto clipped = frame[MeterFrame::clipCount] > 0.0f;
+
+    if (layout.compact)
+    {
+        paintReading (g, layout.integrated, paused ? "INT - PAUSED" : "INT LUFS", MeterText::loudness (frame[MeterFrame::integrated]), theme.primary, 40.0f);
+        paintReading (g, layout.cells[shortTerm], "SHORT", MeterText::loudness (frame[MeterFrame::shortTerm]), theme.text, 40.0f);
+        paintReading (g, layout.cells[truePeak], "TP MAX", MeterText::truePeak (frame[MeterFrame::maxTruePeak]), over ? theme.hot : theme.text, 40.0f);
+        return;
+    }
+
+    paintReading (g, layout.integrated, paused ? "INTEGRATED LUFS - PAUSED" : "INTEGRATED LUFS",
+                  MeterText::loudness (frame[MeterFrame::integrated]), theme.primary, 96.0f);
 
     paintReading (g, layout.cells[momentary], "MOMENTARY", MeterText::loudness (frame[MeterFrame::momentary]), theme.text, 40.0f);
     paintReading (g, layout.cells[shortTerm], "SHORT-TERM", MeterText::loudness (frame[MeterFrame::shortTerm]), theme.text, 40.0f);

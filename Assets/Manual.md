@@ -1,13 +1,18 @@
 # SampleRealm: METER
 
-A meter for the output of a track or a mix. It shows the spectrum, the stereo field, and the loudness and
-true peak. It only listens: the sound passes through unchanged. It works in mono or stereo.
+A meter for the output of a track or a mix. It shows the spectrum, the waveform, the stereo field, and the
+loudness and true peak. It only listens: the sound passes through unchanged. It works in mono or stereo.
 
 ## Spectrum
 
 The curve shows how loud each frequency is, from 20 Hz at the left to 20 kHz at the right.
 The scale tilts up 4.5 dB an octave, so most music looks about level and a mix that is heavy at one end stands out.
 The thin line above the curve holds the highest level each frequency has reached.
+
+## Waveform
+
+The last 8 seconds of the sound scroll by from right to left, as DJ software draws a track.
+The lows, the mids and the highs are drawn one over the other in three colours, so a kick, a voice and a hi-hat each stand out.
 
 ## Stereo Field
 
@@ -45,17 +50,20 @@ RESET in the header starts them again by hand, and drops the spectrum's held lin
 ## Views and Size
 
 Click the corner button of a panel, or double-click the panel, to expand it over the whole window. Do the same to go back.
-Drag the corner of the window to resize it. The size is saved with your project.
+VIEW in the header lists the panels. Untick one to hide it, and the others fill the space.
+Drag the corner of the window to resize it. Made short, the window becomes one row of panels, and the loudness panel shows fewer readings.
+The size is saved with your project.
 
 ## Look
 
-- The theme button steps through the colour themes.
-- FX sets how much the display moves with the beat: Full, Subtle or Off.
+- The theme button lists the colour themes.
+- Edit custom... in that list opens your own theme. Choose the theme it starts from, then set its three colours: click one, and drag in the picker or type a hex colour.
+- VIEW also sets how much the display moves with the beat: Full, Subtle or Off.
 - CAPTURE hides the header and the small labels, for a clean screen recording. Move the mouse and press EXIT CAPTURE to bring them back.
 
 ## Presets
 
-A preset stores the look: the theme, the FX setting and the view.
+A preset stores the look: the theme and your custom theme, the reactivity, the view and which panels show.
 
 - The arrows step through the presets, and the name opens the full list.
 - A * after the name means the look has changed since the preset was loaded.

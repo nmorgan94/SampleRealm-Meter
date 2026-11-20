@@ -18,9 +18,18 @@ public:
         juce::Rectangle<float> scale;                 // the bars' numbers, to their left
         juce::Rectangle<float> integrated;
         std::array<juce::Rectangle<float>, numCells> cells;
+
+        // With little room: narrower bars, and only the integrated, the short-term and the max true peak
+        bool compact = false;
     };
 
     static constexpr float barLabelHeight = 14.0f, scaleWidth = 22.0f;
+
+    // Narrower than this the grid's cells have no room for a number, and shorter, no room under their names
+    static constexpr float compactBelowWidth = 330.0f, compactBelowHeight = 112.0f;
+
+    // Three compact readings side by side need 90 each
+    static constexpr float compactAcrossWidth = 270.0f;
 
     explicit LoudnessView (const MeterLook& lookToUse) : MeterPanel ("LOUDNESS", lookToUse) {}
 

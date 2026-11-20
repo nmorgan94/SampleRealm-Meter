@@ -100,6 +100,7 @@ const MeterFrame::Data& MeterEngine::updateFrame (double seconds) noexcept
         spectrum.setSampleRate (rate);
         stereo.setSampleRate (rate);
         beat.setSampleRate (rate);
+        waveform.setSampleRate (rate);
     }
 
     auto numSamples = 0;
@@ -137,6 +138,7 @@ const MeterFrame::Data& MeterEngine::updateFrame (double seconds) noexcept
     spectrum.push (mid.data(), numSamples);
     stereo.push (incoming[0].data(), incoming[1].data(), numSamples);
     beat.push (mid.data(), numSamples, seconds);
+    waveform.push (mid.data(), numSamples);
     spectrum.update (seconds);
 
     // A reset asked for while no audio is arriving waits for process(), so it's shown here meanwhile
@@ -180,10 +182,12 @@ const MeterFrame::Data& MeterEngine::updateFrame (double seconds) noexcept
     frame[balance] = stereo.getBalance();
     frame[pulse] = beat.get();
     frame[MeterFrame::integrating] = integrating.load() ? 1.0f : 0.0f;
+    frame[waveformPhase] = waveform.getPhase();
 
     std::copy (spectrum.getBands().begin(), spectrum.getBands().end(), frame.begin() + bandsOffset);
     std::copy (spectrum.getPeaks().begin(), spectrum.getPeaks().end(), frame.begin() + peaksOffset);
     stereo.copyPoints (frame.data() + pointsOffset);
+    waveform.copyColumns (frame.data() + waveformOffset);
 
     return frame;
 }

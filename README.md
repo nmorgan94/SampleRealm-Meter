@@ -1,6 +1,6 @@
 # SampleRealm: Meter
 
-An output meter with a spectrum, a stereo field scope, and loudness with true peak, made to look good on screen
+An output meter with a spectrum, a scrolling waveform, a stereo field scope, and loudness with true peak, made to look good on screen
 
 ## Features
 
@@ -10,7 +10,7 @@ The meter only listens: the audio goes out exactly as it came in.
 in ──────────────────────────────────────────────→ out
  │
  └─→ loudness + true peak ──┐
- └─→ spectrum ──────────────┼─→ frame ─→ editor
+ └─→ spectrum + waveform ───┼─→ frame ─→ editor
  └─→ stereo field + beat ───┘
 ```
 
@@ -20,6 +20,12 @@ in ─────────────────────────�
 - 4096-point FFT at 44.1 and 48 kHz, longer at higher rates so the window covers about the same time
 - Tilted up 4.5 dB/oct around 1 kHz, so most music reads about level
 - Rises fast and falls 24 dB a second, with a thin line holding each band's highest level
+
+### Waveform
+
+- The last 8 seconds scrolling by, as DJ software draws a track
+- Lows (under 250 Hz), mids and highs (over 2.5 kHz) as three waveforms, one over the other, in the theme's colours
+- 60 columns a second, each the peak of its band
 
 ### Stereo Field
 
@@ -50,17 +56,20 @@ in ─────────────────────────�
 
 ### Views and Size
 
-- One dashboard with all three panels
+- One dashboard with the four panels. **VIEW** chooses which of them it has, and they fill the space
 - A panel's corner button, or a double-click, expands it over the whole editor, and the same goes back
-- The editor is resizable from 800 × 500 to 1920 × 1200. Its size is saved with the session, not with presets
+- The editor is resizable from 800 × 220 to 1920 × 1200. Under 460 high the panels sit in one row,
+  and the loudness panel shows three readings where it has little room
+- Its size is saved with the session, not with presets
 
 ### Look
 
-- Five colour themes: Neon, Ember, Phosphor, Ultraviolet and Ice
-- **FX** sets how much the display moves with the beat: Full, Subtle or Off
+- Five colour themes: Neon, Ember, Phosphor, Ultraviolet and Ice, chosen from the theme button's menu
+- A custom theme: one of the five with its three accent colours changed, by a picker or as hex. **Edit custom...** in the theme menu
+- **VIEW** also sets how much the display moves with the beat: Full, Subtle or Off
 - **CAPTURE** hides the header and the small labels for a clean screen recording, leaving a small wordmark.
   Move the mouse and press **EXIT CAPTURE** to go back
-- Presets store the look (theme, FX and view), with six factory looks in `Assets/Presets/`
+- Presets store the look (theme, custom theme, reactivity, view and panels), with six factory looks in `Assets/Presets/`
 
 ## System Requirements
 
@@ -171,7 +180,8 @@ AU) and `Meter-Windows.tar.gz` (VST3). They are unsigned.
 
 `Source/shared/ParameterSpecs.h` is the only parameter list, read by the plugin, the wasm engine and
 the web UI. The snapshot test in `Tests/ProcessorTests.cpp` pins what hosts and saved sessions see.
-The three parameters (theme, reactivity, view) only change the look, and hosts can't automate them.
+The parameters (theme, reactivity, view, and one per panel to show it) only change the look, and hosts can't automate them.
+The custom theme's colours aren't parameters: they are a `CustomTheme` in the state beside them (`Source/CustomThemeState.h`).
 
 ## Engine and Editors
 
@@ -201,7 +211,8 @@ The three parameters (theme, reactivity, view) only change the look, and hosts c
   to `main` or by hand: **Actions → Web demo → Run workflow**, or `gh workflow run wasm.yml`.
 - The demo's input is made by `webui/src/demo/loop.ts`. For a recording, add it to
   `webui/public/demo/` as AAC (`.m4a`) so Safari can decode it, and decode it in `startAudio`.
-- The demo runs the same engine as the plugin, so its readings are the plugin's. It is a fixed 960 × 600, scaled to fit the page.
+- The demo runs the same engine as the plugin, so its readings are the plugin's. Its frame is a fixed 960 × 600, scaled to fit the page.
+  **FULL**, **HALF** and **STRIP** under it set the editor's height inside that frame (600, 400 and 220), and are left out where the frame is under 576 wide.
 - The `webview` build installs over the native one; run the `release` workflow to switch back.
 - The wasm build patches JUCE (`cmake/patches/juce-wasm.patch` in SampleRealm-Modules) until JUCE fixes its wasm support.
 

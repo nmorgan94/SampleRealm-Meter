@@ -9,10 +9,11 @@ import { useManual } from '@samplerealm/modules/editor/ManualOverlay.tsx';
 import { usePrompt } from '@samplerealm/modules/editor/PromptOverlay.tsx';
 import manualText from '../../Assets/Manual.md?raw';
 import type { MeterBackend } from './backend.ts';
+import { CustomThemeEditor, useCustomTheme } from './meter/CustomThemeEditor.tsx';
 import { Dashboard } from './meter/Dashboard.tsx';
 import { PADDING } from './meter/dashboardLayout.ts';
-import { CONTROLS_WIDTH, MeterControls } from './meter/MeterControls.tsx';
-import { choiceAt, themeVariables, type Look } from './meter/theme.ts';
+import { CONTROLS_WIDTH, MeterControls, useShown } from './meter/MeterControls.tsx';
+import { choiceAt, themeOf, themeVariables, type Look } from './meter/theme.ts';
 
 // Source/shared/EditorSize.h's default. The plugin's window can be dragged to other sizes, and the editor fills it
 export const EDITOR_WIDTH = 960;
@@ -58,6 +59,7 @@ export const Editor = memo(function Editor({ backend }: { backend: MeterBackend 
   const theme = useParam(backend, 'theme');
   const reactivity = useParam(backend, 'reactivity');
   const view = useParam(backend, 'view');
+  const { shown } = useShown(backend);
 
   // Clean capture mode: only the meter, with no header or labels
   const [capture, setCapture] = useState(false);
@@ -66,15 +68,24 @@ export const Editor = memo(function Editor({ backend }: { backend: MeterBackend 
 
   useEffect(() => () => clearTimeout(exitTimer.current), []);
 
+  const custom = useCustomTheme(backend);
+  const [editingCustom, setEditingCustom] = useState(false);
+
+  // The theme menu's "Edit custom...": the custom theme, and its editor
+  const editCustom = () => {
+    theme.commit(backend.meter.themes.length);
+    setEditingCustom(true);
+  };
+
   const amounts = backend.meter.scales.reactivityAmounts;
 
   const look = useMemo<Look>(
     () => ({
-      theme: choiceAt(backend.meter.themes, theme.value),
+      theme: themeOf(backend.meter.themes, theme.value, custom),
       reactivity: choiceAt(amounts, reactivity.value),
       capture,
     }),
-    [backend, amounts, theme.value, reactivity.value, capture]
+    [backend, amounts, theme.value, custom, reactivity.value, capture]
   );
 
   const leaveCapture = () => {
@@ -100,7 +111,7 @@ export const Editor = memo(function Editor({ backend }: { backend: MeterBackend 
       <div ref={setRoot} className="editor relative size-full overflow-hidden bg-background" style={themeVariables(look.theme) as CSSProperties} onPointerMove={showExit}>
         {width > 0 && height > 0 && (
           <>
-            <Dashboard backend={backend} look={look} view={Math.round(view.value)} bounds={dashboard} onViewChosen={view.commit} />
+            <Dashboard backend={backend} look={look} view={Math.round(view.value)} shown={shown} bounds={dashboard} onViewChosen={view.commit} />
             {capture ? (
               <>
                 <div
@@ -119,13 +130,14 @@ export const Editor = memo(function Editor({ backend }: { backend: MeterBackend 
                 backend={backend}
                 prompt={prompt}
                 showManual={manual.showManual}
-                meter={(bounds) => <MeterControls backend={backend} bounds={bounds} onCapture={() => setCapture(true)} />}
+                meter={(bounds) => <MeterControls backend={backend} bounds={bounds} onCapture={() => setCapture(true)} onEditCustom={editCustom} />}
               />
             )}
           </>
         )}
         {overlay}
         {manual.overlay}
+        {editingCustom && <CustomThemeEditor backend={backend} height={height} onClose={() => setEditingCustom(false)} />}
       </div>
     </EditorRootContext.Provider>
   );

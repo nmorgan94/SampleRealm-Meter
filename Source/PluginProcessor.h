@@ -2,12 +2,14 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <editor/editor.h>
+#include "CustomThemeState.h"
 #include "Parameters.h"
 #include "dsp/MeterEngine.h"
 #include "shared/EditorSize.h"
 
 //==============================================================================
-class AudioPluginAudioProcessor final : public juce::AudioProcessor
+class AudioPluginAudioProcessor final : public juce::AudioProcessor,
+                                        private juce::ValueTree::Listener
 {
 public:
     //==============================================================================
@@ -58,6 +60,14 @@ public:
     juce::Point<int> getEditorSize() const noexcept   { return { editorWidth.load(), editorHeight.load() }; }
     void setEditorSize (int width, int height) noexcept;
 
+    //==============================================================================
+    /**
+     * The user's own theme, kept in the state with the parameters. Read from a copy, as a host may
+     * restore the state from another thread; set on the message thread.
+     */
+    Themes::Custom getCustomTheme() const;
+    void setCustomTheme (Themes::Custom custom);
+
 private:
     juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters",
                                                createParameterLayout (ParameterSpecs::all, Parameters::versionHint) };
@@ -66,6 +76,16 @@ private:
     MeterEngine meterEngine;
 
     std::atomic<int> editorWidth { EditorSize::defaultWidth }, editorHeight { EditorSize::defaultHeight };
+
+    Themes::Custom customTheme;
+    juce::SpinLock customThemeLock;
+
+    // The custom theme is in the state: an edit to it, or a look or session loading, on whichever thread makes it
+    void copyCustomTheme();
+    void valueTreeRedirected (juce::ValueTree&) override   { copyCustomTheme(); }
+    void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree& child) override;
+    void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree& child, int) override;
+    void valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier&) override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };
