@@ -29,6 +29,7 @@ inline std::string meterInfoJson()
     json += "],\"numBands\":" + std::to_string (MeterFrame::numBands);
     json += ",\"numPoints\":" + std::to_string (MeterFrame::numPoints);
     json += ",\"numColumns\":" + std::to_string (MeterFrame::numColumns);
+    json += ",\"columnsPerSecond\":" + number (MeterFrame::columnsPerSecond);
     json += ",\"waveformBands\":" + std::to_string (MeterFrame::waveformBands);
     json += ",\"minHz\":" + number (MeterFrame::minHz) + ",\"maxHz\":" + number (MeterFrame::maxHz);
     json += ",\"noLoudness\":" + number (MeterFrame::noLoudness);

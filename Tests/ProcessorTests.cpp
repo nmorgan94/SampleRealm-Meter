@@ -168,6 +168,52 @@ TEST_CASE_METHOD (ProcessorFixture, "A custom theme that isn't valid in the stat
     CHECK (processor.getCustomTheme() == Themes::Custom { Themes::customIndex - 1, defaults.primary, defaults.secondary, 0x00ff80 });
 }
 
+TEST_CASE_METHOD (ProcessorFixture, "The panels' sizes are saved with the session", "[state]")
+{
+    DashboardLayout::Sizes sizes;
+    // A hidden panel's weight after a drag is seldom a whole number
+    sizes.rows = { 269.0 * 526.0 / 247.0, 131.5, 226.0 };
+    sizes.oneRow = { 1.0, 2.0, 3.0, 4.0 };
+    processor.setPanelSizes (sizes);
+    CHECK (processor.getPanelSizes() == sizes);
+
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
+
+    AudioPluginAudioProcessor restored;
+    CHECK (restored.getPanelSizes() == DashboardLayout::Sizes {});
+
+    restored.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+    CHECK (restored.getPanelSizes() == sizes);
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "Panel sizes that aren't valid in the state keep their defaults", "[state]")
+{
+    juce::ValueTree tree (PanelSizesState::type);
+    tree.setProperty (PanelSizesState::rowsProp, "1 2", nullptr);
+    tree.setProperty (PanelSizesState::lowerProp, "3 0", nullptr);
+    tree.setProperty (PanelSizesState::oneRowProp, "4 3 2 1", nullptr);
+    processor.getAPVTS().state.appendChild (tree, nullptr);
+
+    DashboardLayout::Sizes expected;
+    expected.oneRow = { 4.0, 3.0, 2.0, 1.0 };
+    CHECK (processor.getPanelSizes() == expected);
+
+    // As the web UI sends them
+    CHECK (PanelSizesState::from (PanelSizesState::toVar (expected)) == expected);
+}
+
+TEST_CASE ("Panel sizes edited by hand read as the web UI reads them", "[state]")
+{
+    juce::ValueTree tree (PanelSizesState::type);
+    tree.setProperty (PanelSizesState::rowsProp, " 300  131.5 226 ", nullptr);
+    tree.setProperty (PanelSizesState::lowerProp, "40abc 60", nullptr);
+
+    DashboardLayout::Sizes expected;
+    expected.rows = { 300.0, 131.5, 226.0 };
+    CHECK (PanelSizesState::from (tree) == expected);
+}
+
 TEST_CASE_METHOD (ProcessorFixture, "The editor's size stays within its limits, and a preset doesn't change it", "[state]")
 {
     processor.setEditorSize (10, 99999);

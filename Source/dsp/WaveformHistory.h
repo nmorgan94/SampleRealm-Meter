@@ -17,9 +17,7 @@ public:
     static constexpr int numColumns = MeterFrame::numColumns;
     static constexpr int numBands = MeterFrame::waveformBands;
 
-    // One column for each frame an editor draws, so the waveform moves on every frame. With
-    // numColumns of them that's 8 seconds: a few bars at any usual tempo
-    static constexpr double columnsPerSecond = 60.0;
+    static constexpr double columnsPerSecond = MeterFrame::columnsPerSecond;
 
     void setSampleRate (double sampleRate) noexcept
     {

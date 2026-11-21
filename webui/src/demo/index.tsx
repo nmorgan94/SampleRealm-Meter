@@ -4,7 +4,7 @@ import { DemoFrame } from '@samplerealm/modules/demo/DemoFrame.tsx';
 import { instantiateEngine, loadEngine, readJson, startWorklet } from '@samplerealm/modules/demo/engine.ts';
 import processorUrl from '@samplerealm/modules/demo/processor.js?url';
 import { juceHeight } from '@samplerealm/modules/editor/fonts.ts';
-import type { MeterInfo } from '../backend.ts';
+import type { FrameLayout, MeterInfo } from '../backend.ts';
 import { EDITOR_HEIGHT, EDITOR_WIDTH, Editor } from '../Editor.tsx';
 import { factoryPresets } from './factoryPresets.ts';
 import { loopTransport, makeLoop } from './loop.ts';
@@ -37,8 +37,8 @@ async function startAudio(backend: MeterWorkletBackend, wasm: ArrayBuffer, conte
 }
 
 // How long the engine keeps running after Pause, so the meter falls away rather than freezing. The last to go
-// are the short-term loudness, 3 s and a block, and the spectrum's 78 dB at 24 dB a second, 3.25 s
-const SETTLE_MS = 3500;
+// is the waveform, which takes its whole length to scroll out, and half a second more covers the timer's slack
+const settleMs = ({ numColumns, columnsPerSecond }: FrameLayout) => (numColumns / columnsPerSecond) * 1000 + 500;
 
 // The loop runs through the engine, so Pause also lets the meter fall
 function usePlayer(audio: Audio | null, backend: MeterWorkletBackend | undefined) {
@@ -53,11 +53,11 @@ function usePlayer(audio: Audio | null, backend: MeterWorkletBackend | undefined
 
   // Runs the engine for long enough to settle, then stops it
   const settle = useCallback(() => {
-    if (!audio) return;
+    if (!audio || !backend) return;
     clearTimeout(settling.current);
     void audio.context.resume();
-    settling.current = window.setTimeout(() => void audio.context.suspend(), SETTLE_MS);
-  }, [audio]);
+    settling.current = window.setTimeout(() => void audio.context.suspend(), settleMs(backend.meter.frame));
+  }, [audio, backend]);
 
   // A reset while paused needs the engine running to make it and show it
   useEffect(() => {

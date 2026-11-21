@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <editor/editor.h>
 #include "CustomThemeState.h"
+#include "PanelSizesState.h"
 #include "Parameters.h"
 #include "dsp/MeterEngine.h"
 #include "shared/EditorSize.h"
@@ -68,6 +69,10 @@ public:
     Themes::Custom getCustomTheme() const;
     void setCustomTheme (Themes::Custom custom);
 
+    /** The panels' sizes, kept and read as the custom theme is. */
+    DashboardLayout::Sizes getPanelSizes() const;
+    void setPanelSizes (DashboardLayout::Sizes sizes);
+
 private:
     juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters",
                                                createParameterLayout (ParameterSpecs::all, Parameters::versionHint) };
@@ -78,11 +83,13 @@ private:
     std::atomic<int> editorWidth { EditorSize::defaultWidth }, editorHeight { EditorSize::defaultHeight };
 
     Themes::Custom customTheme;
-    juce::SpinLock customThemeLock;
+    DashboardLayout::Sizes panelSizes;
+    juce::SpinLock copiesLock;
 
-    // The custom theme is in the state: an edit to it, or a look or session loading, on whichever thread makes it
-    void copyCustomTheme();
-    void valueTreeRedirected (juce::ValueTree&) override   { copyCustomTheme(); }
+    // The custom theme and the panels' sizes are in the state: an edit to one, or a look or session loading, on whichever thread makes it
+    void copyFromState();
+    void copyIfKept (const juce::ValueTree& tree);
+    void valueTreeRedirected (juce::ValueTree&) override   { copyFromState(); }
     void valueTreeChildAdded (juce::ValueTree&, juce::ValueTree& child) override;
     void valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree& child, int) override;
     void valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier&) override;

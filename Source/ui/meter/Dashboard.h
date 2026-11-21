@@ -29,9 +29,22 @@ public:
     /** Which panels the dashboard has. An expanded panel shows whether it's one of them or not. */
     void setShown (const DashboardLayout::Shown& newShown);
 
+    /** How the panels share the space. */
+    void setSizes (const DashboardLayout::Sizes& newSizes);
+
+    /** Called with the sizes a drag on the gap between two panels asks for, or a double-click there, which puts them back. */
+    std::function<void (const DashboardLayout::Sizes&)> onSizesChosen;
+
     void setFrame (const MeterFrame::Data& frame, double seconds);
 
     void resized() override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+
+    /** The gaps that can be dragged: none while a panel is expanded. */
+    std::vector<DashboardLayout::Divider> getDividers() const;
 
     MeterPanel& getPanel (DashboardLayout::Panel panel)   { return *panels[panel]; }
 
@@ -45,6 +58,13 @@ private:
     const std::array<MeterPanel*, DashboardLayout::numPanels> panels { &spectrum, &stereo, &loudness, &waveform };
 
     DashboardLayout::Shown shown = DashboardLayout::allShown;
+    DashboardLayout::Sizes sizes;
+
+    // The gap being dragged, and the sizes as the drag began
+    std::optional<DashboardLayout::Divider> draggedDivider;
+    DashboardLayout::Sizes sizesBeforeDrag;
+
+    std::optional<DashboardLayout::Divider> dividerAt (juce::Point<int> position) const;
 
     int view = dashboardView;
     DashboardLayout::Panel expanded = DashboardLayout::spectrum;   // the panel growing, shrinking or full

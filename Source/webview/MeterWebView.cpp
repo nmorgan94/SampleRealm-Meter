@@ -19,8 +19,9 @@ juce::AudioProcessorEditor* createMeterWebView (AudioPluginAudioProcessor& proce
     // Read first: the editor stores its size as it opens
     const auto size = processor.getEditorSize();
 
-    // The custom theme the page has, so only a change made elsewhere, such as a look loading, is sent to it
+    // The custom theme and panel sizes the page has, so only a change made elsewhere, such as a look loading, is sent to it
     const auto customThemeSent = std::make_shared<Themes::Custom> (processor.getCustomTheme());
+    const auto panelSizesSent = std::make_shared<DashboardLayout::Sizes> (processor.getPanelSizes());
 
     return new WebViewEditor (processor, {
         .specs = ParameterSpecs::all,
@@ -30,7 +31,7 @@ juce::AudioProcessorEditor* createMeterWebView (AudioPluginAudioProcessor& proce
         .height = size.y,
         // The first theme's, until the page draws its own
         .background = MeterTheme::of (0).background,
-        .onTick = [&processor, customThemeSent,
+        .onTick = [&processor, customThemeSent, panelSizesSent,
                    lastFrameTime = juce::Time::getMillisecondCounterHiRes(),
                    lastFrameSent = MeterFrame::Data {},
                    framesUnsent = 0] (const WebViewEditor::EmitEvent& emit) mutable
@@ -48,6 +49,12 @@ juce::AudioProcessorEditor* createMeterWebView (AudioPluginAudioProcessor& proce
                 emit ("customTheme", CustomThemeState::toVar (custom));
             }
 
+            if (const auto sizes = processor.getPanelSizes(); sizes != *panelSizesSent)
+            {
+                *panelSizesSent = sizes;
+                emit ("panelSizes", PanelSizesState::toVar (sizes));
+            }
+
             const auto& frame = processor.getMeterEngine().updateFrame (seconds);
 
             // A stopped or silent meter soon shows the same frame every time. It still goes twice a second,
@@ -61,11 +68,22 @@ juce::AudioProcessorEditor* createMeterWebView (AudioPluginAudioProcessor& proce
                 emit ("frame", juce::Base64::toBase64 (frame.data(), frame.size() * sizeof (float)));
             }
         },
-        .withOptions = [&processor, customThemeSent] (juce::WebBrowserComponent::Options options)
+        .withOptions = [&processor, customThemeSent, panelSizesSent] (juce::WebBrowserComponent::Options options)
         {
             return options
                 .withInitialisationData ("meterInfo", juce::String (meterInfoJson()))
                 .withInitialisationData ("customTheme", CustomThemeState::toVar (*customThemeSent))
+                .withInitialisationData ("panelSizes", PanelSizesState::toVar (*panelSizesSent))
+                .withNativeFunction ("setPanelSizes", [&processor, panelSizesSent] (const juce::Array<juce::var>& args, juce::WebBrowserComponent::NativeFunctionCompletion complete)
+                {
+                    if (! args.isEmpty())
+                    {
+                        *panelSizesSent = PanelSizesState::from (args.getReference (0));
+                        processor.setPanelSizes (*panelSizesSent);
+                    }
+
+                    complete ({});
+                })
                 .withNativeFunction ("setCustomTheme", [&processor, customThemeSent] (const juce::Array<juce::var>& args, juce::WebBrowserComponent::NativeFunctionCompletion complete)
                 {
                     if (! args.isEmpty())

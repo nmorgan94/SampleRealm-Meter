@@ -67,6 +67,13 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     dashboard.onViewChosen = [this] (int view) { viewAttachment.setValueAsCompleteGesture (static_cast<float> (view)); };
 
+    dashboard.setSizes (processorRef.getPanelSizes());
+    dashboard.onSizesChosen = [this] (const DashboardLayout::Sizes& sizes)
+    {
+        processorRef.setPanelSizes (sizes);
+        dashboard.setSizes (sizes);
+    };
+
     themeAttachment.sendInitialUpdate();
     reactivityAttachment.sendInitialUpdate();
     viewAttachment.sendInitialUpdate();
@@ -213,7 +220,7 @@ void AudioPluginAudioProcessorEditor::setCaptureMode (bool shouldCapture)
 
 void AudioPluginAudioProcessorEditor::showNextFrame (double seconds)
 {
-    // A look or session loading. The custom theme's editor shows its own edits
+    // A look or session loading. The custom theme's editor and a drag in the dashboard show their own edits
     if (processorRef.getCustomTheme() != customThemeShown)
     {
         customThemeChanged();
@@ -222,6 +229,7 @@ void AudioPluginAudioProcessorEditor::showNextFrame (double seconds)
             customTheme.refresh();
     }
 
+    dashboard.setSizes (processorRef.getPanelSizes());
     dashboard.setFrame (processorRef.getMeterEngine().updateFrame (seconds), juce::jlimit (0.0, MeterEngine::maxFrameSeconds, seconds));
 }
 

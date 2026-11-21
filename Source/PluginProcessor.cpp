@@ -192,34 +192,56 @@ void AudioPluginAudioProcessor::setEditorSize (int width, int height) noexcept
 
 Themes::Custom AudioPluginAudioProcessor::getCustomTheme() const
 {
-    const juce::SpinLock::ScopedLockType lock (customThemeLock);
+    const juce::SpinLock::ScopedLockType lock (copiesLock);
     return customTheme;
 }
 
-void AudioPluginAudioProcessor::copyCustomTheme()
+DashboardLayout::Sizes AudioPluginAudioProcessor::getPanelSizes() const
+{
+    const juce::SpinLock::ScopedLockType lock (copiesLock);
+    return panelSizes;
+}
+
+void AudioPluginAudioProcessor::copyFromState()
 {
     const auto custom = CustomThemeState::read (apvts.state);
+    const auto sizes = PanelSizesState::read (apvts.state);
 
-    const juce::SpinLock::ScopedLockType lock (customThemeLock);
+    const juce::SpinLock::ScopedLockType lock (copiesLock);
     customTheme = custom;
+    panelSizes = sizes;
+}
+
+void AudioPluginAudioProcessor::copyIfKept (const juce::ValueTree& tree)
+{
+    if (tree.hasType (CustomThemeState::type) || tree.hasType (PanelSizesState::type))
+        copyFromState();
 }
 
 void AudioPluginAudioProcessor::valueTreeChildAdded (juce::ValueTree&, juce::ValueTree& child)
 {
-    if (child.hasType (CustomThemeState::type))
-        copyCustomTheme();
+    copyIfKept (child);
 }
 
 void AudioPluginAudioProcessor::valueTreeChildRemoved (juce::ValueTree&, juce::ValueTree& child, int)
 {
-    if (child.hasType (CustomThemeState::type))
-        copyCustomTheme();
+    copyIfKept (child);
 }
 
 void AudioPluginAudioProcessor::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier&)
 {
-    if (tree.hasType (CustomThemeState::type))
-        copyCustomTheme();
+    copyIfKept (tree);
+}
+
+void AudioPluginAudioProcessor::setPanelSizes (DashboardLayout::Sizes sizes)
+{
+    if (sizes == getPanelSizes())
+        return;
+
+    PanelSizesState::write (apvts.state, sizes);
+
+    // The preset manager hears this as an edit to the look
+    updateHostDisplay (ChangeDetails{}.withNonParameterStateChanged (true));
 }
 
 void AudioPluginAudioProcessor::setCustomTheme (Themes::Custom custom)

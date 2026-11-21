@@ -39,6 +39,10 @@ namespace MeterFrame
 
     // The waveform: a low, a mid and a high peak for each column, from 0 to about 1
     inline constexpr int numColumns = 480;
+
+    // One column for each frame an editor draws, so the waveform moves on every frame. With
+    // numColumns of them that's 8 seconds: a few bars at any usual tempo
+    inline constexpr double columnsPerSecond = 60.0;
     inline constexpr int waveformBands = 3;
 
     inline constexpr int bandsOffset = numScalars;

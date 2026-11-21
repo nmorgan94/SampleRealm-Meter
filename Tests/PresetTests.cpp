@@ -49,6 +49,20 @@ TEST_CASE_METHOD (ProcessorFixture, "Changing the custom theme is an edit to the
     CHECK (processor.getCustomTheme() == Themes::Custom {});
 }
 
+TEST_CASE_METHOD (ProcessorFixture, "Resizing the panels is an edit to the look, and Init puts them back", "[presets]")
+{
+    auto& presets = processor.getPresetManager();
+    REQUIRE (presets.loadPreset (presets.find ("Ember Pulse", true).value()));
+
+    DashboardLayout::Sizes sizes;
+    sizes.lower = { 1.0, 1.0 };
+    processor.setPanelSizes (sizes);
+    CHECK (presets.isModified());
+
+    presets.loadInit();
+    CHECK (processor.getPanelSizes() == DashboardLayout::Sizes {});
+}
+
 TEST_CASE_METHOD (ProcessorFixture, "A reopened session shows the same preset", "[presets][state]")
 {
     auto& presets = processor.getPresetManager();

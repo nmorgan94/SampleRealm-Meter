@@ -8,6 +8,7 @@ export interface FrameLayout {
   numPoints: number;
   // The waveform: waveformBands peaks for each column, from 0 to about 1, the oldest column first
   numColumns: number;
+  columnsPerSecond: number;
   waveformBands: number;
   minHz: number;
   maxHz: number;
@@ -48,6 +49,16 @@ export interface CustomTheme {
   hot: string;
 }
 
+// DashboardLayout::Sizes: how the panels share the dashboard, as weights, which dragging the gaps between them changes
+export interface PanelSizes {
+  // The spectrum, the waveform, and the row under them
+  rows: number[];
+  // In that row, the stereo field and the loudness
+  lower: number[];
+  // A short dashboard's one row: the spectrum, the waveform, the stereo field and the loudness
+  oneRow: number[];
+}
+
 // Source/shared/MeterInfoJson.h
 export interface MeterInfo {
   frame: FrameLayout;
@@ -64,6 +75,10 @@ export interface MeterBackend extends PluginBackend {
   customTheme(): CustomTheme;
   onCustomTheme(listener: (theme: CustomTheme) => void): () => void;
   setCustomTheme(theme: CustomTheme): void;
+  // The panels' sizes, saved as the custom theme is
+  panelSizes(): PanelSizes;
+  onPanelSizes(listener: (sizes: PanelSizes) => void): () => void;
+  setPanelSizes(sizes: PanelSizes): void;
   // The meter now, about 60 times a second: see meter/frame.ts
   onFrame(listener: (frame: Float32Array) => void): () => void;
   // Starts the integrated loudness, the range, the held peaks and the clip count again, as starting playback does

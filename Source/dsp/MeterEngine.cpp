@@ -48,6 +48,7 @@ void MeterEngine::process (const juce::AudioBuffer<float>& buffer, const Transpo
         reset = true;
 
     wasPlaying = transport.hostPlaying;
+    hasPlayed = hasPlayed || transport.hostPlaying;
 
     if (reset)
     {
@@ -56,7 +57,9 @@ void MeterEngine::process (const juce::AudioBuffer<float>& buffer, const Transpo
         readerReset = true;
     }
 
-    const auto counting = ! transport.available || transport.hostPlaying;
+    // A host with no transport controls reports one that never plays, so stopped only means
+    // waiting once it has played
+    const auto counting = ! transport.available || ! hasPlayed || transport.hostPlaying;
     loudness.setIntegrating (counting);
     integrating = counting;
 

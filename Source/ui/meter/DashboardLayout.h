@@ -1,7 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
-#include <numeric>
+#include <span>
 #include <vector>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -24,89 +25,253 @@ namespace DashboardLayout
     // too short for the loudness readings
     inline constexpr int rowBelowHeight = 416;
 
-    struct Weighted
+    // A drag leaves a panel at least this big: about its title beside the expand button, and
+    // its title over a strip of content
+    inline constexpr int minPanelWidth = 120, minPanelHeight = 64;
+
+    /** The spaces that are shared out: the dashboard's rows, the lower of them, and the one row of a short dashboard. */
+    enum class Group { rows, lower, oneRow };
+
+    inline constexpr int maxSlots = 4;
+
+    // The panel in each slot of the groups that hold panels. The rows are these two, then the lower row
+    inline constexpr std::array<Panel, 2> rowPanels { spectrum, waveform };
+    inline constexpr std::array<Panel, 2> lowerPanels { stereo, loudness };
+    inline constexpr std::array<Panel, 4> oneRowPanels { spectrum, waveform, stereo, loudness };
+    inline constexpr size_t lowerRowSlot = 2;
+
+    /** How each group's space is shared between its slots, as weights. Dragging the gap between two panels changes them. */
+    struct Sizes
     {
-        Panel panel;
-        int weight;
+        // The spectrum has most of the height, as it had before the waveform; the waveform is a strip
+        std::array<double, 3> rows { 58.0, 25.0, 42.0 };
+        std::array<double, 2> lower { 40.0, 60.0 };
+
+        // In one row the stereo field, which is square, needs the least width
+        std::array<double, 4> oneRow { 3.0, 3.0, 2.0, 3.0 };
+
+        std::span<double> of (Group group)
+        {
+            return group == Group::rows ? std::span<double> (rows) : group == Group::lower ? std::span<double> (lower) : std::span<double> (oneRow);
+        }
+
+        std::span<const double> of (Group group) const
+        {
+            return group == Group::rows ? std::span<const double> (rows) : group == Group::lower ? std::span<const double> (lower) : std::span<const double> (oneRow);
+        }
+
+        bool operator== (const Sizes&) const = default;
     };
 
-    // The spectrum has most of the height, as it had before the waveform; the waveform is a strip
-    inline constexpr int spectrumRowWeight = 58, waveformRowWeight = 25, lowerRowWeight = 42;
-    inline constexpr std::array<Weighted, 2> lowerRow { { { stereo, 40 }, { loudness, 60 } } };
-
-    // In one row the stereo field, which is square, needs the least width
-    inline constexpr std::array<Weighted, 4> oneRow { { { spectrum, 3 }, { waveform, 3 }, { stereo, 2 }, { loudness, 3 } } };
-
-    /** An area cut by weight into parts with gaps between, across or down. The last part takes what rounding leaves. */
-    inline std::vector<juce::Rectangle<int>> divided (juce::Rectangle<int> area, const std::vector<int>& weights, bool across)
+    /** Which of a group's slots have anything in them. */
+    inline std::array<bool, maxSlots> present (Group group, const Shown& shown)
     {
-        const auto length = across ? area.getWidth() : area.getHeight();
-        const auto room = length - gap * (static_cast<int> (weights.size()) - 1);
-        const auto total = std::accumulate (weights.begin(), weights.end(), 0);
+        if (group == Group::rows)
+            return { shown[spectrum], shown[waveform], shown[stereo] || shown[loudness], false };
 
-        std::vector<juce::Rectangle<int>> parts;
+        if (group == Group::lower)
+            return { shown[stereo], shown[loudness], false, false };
 
-        for (const auto weight : weights)
+        return { shown[spectrum], shown[waveform], shown[stereo], shown[loudness] };
+    }
+
+    struct Part
+    {
+        size_t slot;
+        juce::Rectangle<int> area;
+    };
+
+    /** Whether a group's parts sit side by side. */
+    inline bool isAcross (Group group)
+    {
+        return group != Group::rows;
+    }
+
+    /** An area cut by weight into its present slots with gaps between, across or down. The last part takes what rounding leaves. */
+    inline std::vector<Part> divided (juce::Rectangle<int> area, std::span<const double> weights, const std::array<bool, maxSlots>& slots, bool across)
+    {
+        std::vector<Part> parts;
+        auto total = 0.0;
+
+        for (size_t slot = 0; slot < weights.size(); ++slot)
         {
-            const auto size = parts.size() + 1 == weights.size() ? length : room * weight / total;
-            parts.push_back (across ? area.removeFromLeft (size) : area.removeFromTop (size));
+            if (slots[slot])
+            {
+                parts.push_back ({ slot, {} });
+                total += weights[slot];
+            }
+        }
+
+        const auto length = across ? area.getWidth() : area.getHeight();
+        const auto room = length - gap * (static_cast<int> (parts.size()) - 1);
+
+        for (auto& part : parts)
+        {
+            const auto size = &part == &parts.back() ? length : static_cast<int> (room * weights[part.slot] / total);
+            part.area = across ? area.removeFromLeft (size) : area.removeFromTop (size);
             across ? area.removeFromLeft (gap) : area.removeFromTop (gap);
         }
 
         return parts;
     }
 
+    inline bool isOneRow (juce::Rectangle<int> bounds)
+    {
+        return bounds.getHeight() < rowBelowHeight;
+    }
+
+    inline std::vector<Part> lowerParts (juce::Rectangle<int> row, const Shown& shown, const Sizes& sizes)
+    {
+        return divided (row, sizes.lower, present (Group::lower, shown), isAcross (Group::lower));
+    }
+
+    /** A group's parts in a dashboard that has it. */
+    inline std::vector<Part> partsOf (Group group, juce::Rectangle<int> bounds, const Shown& shown, const Sizes& sizes)
+    {
+        if (group != Group::lower)
+            return divided (bounds.reduced (padding), sizes.of (group), present (group, shown), isAcross (group));
+
+        for (const auto& row : partsOf (Group::rows, bounds, shown, sizes))
+            if (row.slot == lowerRowSlot)
+                return lowerParts (row.area, shown, sizes);
+
+        return {};
+    }
+
     /**
      * The spectrum over the waveform, with the stereo field and the loudness side by side below,
      * or all in one row in a short dashboard. What's shown fills the space.
      */
-    inline Panels dashboard (juce::Rectangle<int> bounds, const Shown& shown = allShown)
+    inline Panels dashboard (juce::Rectangle<int> bounds, const Shown& shown = allShown, const Sizes& sizes = {})
     {
-        const auto inner = bounds.reduced (padding);
         Panels panels;
 
-        const auto placeAcross = [&] (juce::Rectangle<int> area, const auto& row)
+        if (isOneRow (bounds))
         {
-            std::vector<Panel> present;
-            std::vector<int> weights;
+            for (const auto& part : partsOf (Group::oneRow, bounds, shown, sizes))
+                panels[oneRowPanels[part.slot]] = part.area;
 
-            for (const auto& [panel, weight] : row)
-                if (shown[panel])
-                    present.push_back (panel), weights.push_back (weight);
-
-            const auto parts = divided (area, weights, true);
-
-            for (size_t i = 0; i < present.size(); ++i)
-                panels[present[i]] = parts[i];
-        };
-
-        if (bounds.getHeight() < rowBelowHeight)
-        {
-            placeAcross (inner, oneRow);
             return panels;
         }
 
-        const auto hasLowerRow = shown[stereo] || shown[loudness];
-        std::vector<int> weights;
+        for (const auto& row : partsOf (Group::rows, bounds, shown, sizes))
+        {
+            if (row.slot != lowerRowSlot)
+            {
+                panels[rowPanels[row.slot]] = row.area;
+                continue;
+            }
 
-        if (shown[spectrum])   weights.push_back (spectrumRowWeight);
-        if (shown[waveform])   weights.push_back (waveformRowWeight);
-        if (hasLowerRow)       weights.push_back (lowerRowWeight);
-
-        const auto rows = divided (inner, weights, false);
-        auto row = rows.begin();
-
-        if (shown[spectrum])   panels[spectrum] = *row++;
-        if (shown[waveform])   panels[waveform] = *row++;
-        if (hasLowerRow)       placeAcross (*row, lowerRow);
+            for (const auto& part : lowerParts (row.area, shown, sizes))
+                panels[lowerPanels[part.slot]] = part.area;
+        }
 
         return panels;
     }
 
-    /** The dashboard with one panel some way, from 0 to 1, to filling it. */
-    inline Panels expanding (juce::Rectangle<int> bounds, const Shown& shown, Panel expanded, float amount)
+    /** The gap between two neighbouring parts of a group, which a drag moves. */
+    struct Divider
     {
-        auto panels = dashboard (bounds, shown);
+        Group group;
+        size_t before, after;   // the slots either side
+        bool across;         // between parts side by side
+        juce::Rectangle<int> area;
+
+        bool operator== (const Divider&) const = default;
+    };
+
+    inline std::vector<Divider> dividers (juce::Rectangle<int> bounds, const Shown& shown = allShown, const Sizes& sizes = {})
+    {
+        std::vector<Divider> found;
+
+        const auto add = [&] (Group group)
+        {
+            const auto parts = partsOf (group, bounds, shown, sizes);
+            const auto across = isAcross (group);
+
+            for (size_t i = 1; i < parts.size(); ++i)
+            {
+                const auto& before = parts[i - 1].area;
+                found.push_back ({ group, parts[i - 1].slot, parts[i].slot, across,
+                                   across ? before.withX (before.getRight()).withWidth (gap) : before.withY (before.getBottom()).withHeight (gap) });
+            }
+        };
+
+        if (isOneRow (bounds))
+        {
+            add (Group::oneRow);
+        }
+        else
+        {
+            add (Group::rows);
+            add (Group::lower);
+        }
+
+        return found;
+    }
+
+    /**
+     * The sizes after a divider has been dragged some pixels right or down. Its two neighbours share
+     * what they had, neither going under the minimum, and the group's weights become its parts' pixels.
+     */
+    inline Sizes dragged (juce::Rectangle<int> bounds, const Shown& shown, Sizes sizes, const Divider& divider, int pixels)
+    {
+        const auto parts = partsOf (divider.group, bounds, shown, sizes);
+        const auto lengthOf = [&divider] (const Part& part) { return divider.across ? part.area.getWidth() : part.area.getHeight(); };
+
+        const auto lengthIn = [&] (size_t slot)
+        {
+            const auto part = std::find_if (parts.begin(), parts.end(), [slot] (const Part& p) { return p.slot == slot; });
+            return part != parts.end() ? lengthOf (*part) : 0;
+        };
+
+        const auto before = lengthIn (divider.before), after = lengthIn (divider.after);
+
+        // Nothing there to share out
+        if (std::any_of (parts.begin(), parts.end(), [&] (const Part& part) { return lengthOf (part) < 1; }) || before < 1 || after < 1)
+            return sizes;
+
+        // A panel already under the minimum, in a small editor, isn't made to grow
+        const auto smallest = divider.across ? minPanelWidth : minPanelHeight;
+        const auto moved = juce::jlimit (juce::jmin (smallest, before), before + after - juce::jmin (smallest, after), before + pixels);
+
+        if (moved == before)
+            return sizes;
+
+        const auto weights = sizes.of (divider.group);
+        auto total = 0.0;
+        auto room = 0;
+
+        for (const auto& part : parts)
+        {
+            total += weights[part.slot];
+            room += lengthOf (part);
+        }
+
+        // The slots that aren't showing keep their share
+        for (auto& weight : weights)
+            weight *= room / total;
+
+        for (const auto& part : parts)
+            weights[part.slot] = lengthOf (part);
+
+        weights[divider.before] = moved;
+        weights[divider.after] = before + after - moved;
+        return sizes;
+    }
+
+    /** The sizes with a group's back as they began. */
+    inline Sizes reset (Sizes sizes, Group group)
+    {
+        const Sizes defaults;
+        std::ranges::copy (defaults.of (group), sizes.of (group).begin());
+        return sizes;
+    }
+
+    /** The dashboard with one panel some way, from 0 to 1, to filling it. */
+    inline Panels expanding (juce::Rectangle<int> bounds, const Shown& shown, Panel expanded, float amount, const Sizes& sizes = {})
+    {
+        auto panels = dashboard (bounds, shown, sizes);
         const auto to = bounds.reduced (padding).toFloat();
 
         // A panel the dashboard doesn't show grows from the middle

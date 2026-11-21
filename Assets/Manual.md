@@ -44,13 +44,14 @@ Integrated is the number streaming services and broadcasters mean by a loudness 
 ## Play and Reset
 
 Starting playback starts the integrated loudness, the range, the held peaks and the clip count again.
-While the host is stopped they wait, and the integrated loudness shows PAUSED. In the Standalone they always run.
+Once the host has played, they wait while it is stopped, and the integrated loudness shows PAUSED. In the Standalone, and in a host with no play button, they always run.
 RESET in the header starts them again by hand, and drops the spectrum's held line to the current levels.
 
 ## Views and Size
 
 Click the corner button of a panel, or double-click the panel, to expand it over the whole window. Do the same to go back.
 VIEW in the header lists the panels. Untick one to hide it, and the others fill the space.
+Drag the gap between two panels to resize them. Double-click the gap to put them back.
 Drag the corner of the window to resize it. Made short, the window becomes one row of panels, and the loudness panel shows fewer readings.
 The size is saved with your project.
 
@@ -63,7 +64,7 @@ The size is saved with your project.
 
 ## Presets
 
-A preset stores the look: the theme and your custom theme, the reactivity, the view and which panels show.
+A preset stores the look: the theme and your custom theme, the reactivity, the view, which panels show and their sizes.
 
 - The arrows step through the presets, and the name opens the full list.
 - A * after the name means the look has changed since the preset was loaded.

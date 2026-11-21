@@ -416,25 +416,34 @@ TEST_CASE_METHOD (EngineFixture, "With a host transport, the integrated loudness
     const auto quiet = makeTone (2, 5.0, 1000.0, dbToGain (-23.0f));
     const auto loud = makeTone (2, 5.0, 1000.0, dbToGain (-10.0f));
 
-    // Stopped: the live readings move, the integrated one waits
-    auto frame = play (quiet, stopped);
-    CHECK_THAT (frame[MeterFrame::integrated], WithinAbs (MeterFrame::noLoudness, 0.0));
-    CHECK_THAT (frame[MeterFrame::shortTerm], WithinAbs (-23.0, 0.1));
-    CHECK_THAT (frame[MeterFrame::integrating], WithinAbs (0.0, 0.0));
-
-    frame = play (quiet, playing);
+    auto frame = play (quiet, playing);
     CHECK_THAT (frame[MeterFrame::integrated], WithinAbs (-23.0, 0.1));
     CHECK_THAT (frame[MeterFrame::integrating], WithinAbs (1.0, 0.0));
 
-    // Stopping keeps what was measured
+    // Stopped: the live readings move, the integrated one keeps what was measured
     frame = play (loud, stopped);
     CHECK_THAT (frame[MeterFrame::integrated], WithinAbs (-23.0, 0.1));
+    CHECK_THAT (frame[MeterFrame::shortTerm], WithinAbs (-10.0, 0.1));
+    CHECK_THAT (frame[MeterFrame::integrating], WithinAbs (0.0, 0.0));
     CHECK_THAT (frame[MeterFrame::maxTruePeak], WithinAbs (-10.0, 0.1));
 
     // Playing again starts from nothing
     frame = play (quiet, playing);
     CHECK_THAT (frame[MeterFrame::integrated], WithinAbs (-23.0, 0.1));
     CHECK_THAT (frame[MeterFrame::maxTruePeak], WithinAbs (-23.0, 0.1));
+}
+
+TEST_CASE_METHOD (EngineFixture, "A host whose transport has never played counts, through a prepare too", "[engine][transport]")
+{
+    auto frame = play (makeTone (2, 5.0, 1000.0, dbToGain (-23.0f)), stopped);
+    CHECK_THAT (frame[MeterFrame::integrated], WithinAbs (-23.0, 0.1));
+    CHECK_THAT (frame[MeterFrame::integrating], WithinAbs (1.0, 0.0));
+
+    // One that has played still waits after preparing again
+    play (makeTone (2, 1.0, 1000.0, dbToGain (-23.0f)), playing);
+    engine.prepare (sampleRate, 2);
+    frame = play (makeTone (2, 1.0, 1000.0, dbToGain (-23.0f)), stopped);
+    CHECK_THAT (frame[MeterFrame::integrating], WithinAbs (0.0, 0.0));
 }
 
 TEST_CASE_METHOD (EngineFixture, "A host that plays without a beat position still counts", "[engine][transport]")

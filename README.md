@@ -49,15 +49,16 @@ in ─────────────────────────�
 ### Play and Reset
 
 - Starting playback starts the integrated loudness, the range, the held peaks and the clip count again
-- While the host is stopped they wait, and the integrated loudness shows PAUSED
+- Once the host has played, they wait while it is stopped, and the integrated loudness shows PAUSED
 - If the host stops sending audio altogether, the display falls away as it would through silence
-- With no host transport, as in the Standalone, they always run
+- With no host transport, as in the Standalone, or one that never plays, they always run
 - **RESET** starts them again by hand, along with the spectrum's held line
 
 ### Views and Size
 
 - One dashboard with the four panels. **VIEW** chooses which of them it has, and they fill the space
 - A panel's corner button, or a double-click, expands it over the whole editor, and the same goes back
+- Dragging the gap between two panels resizes them, and a double-click there puts them back
 - The editor is resizable from 800 × 220 to 1920 × 1200. Under 460 high the panels sit in one row,
   and the loudness panel shows three readings where it has little room
 - Its size is saved with the session, not with presets
@@ -69,7 +70,7 @@ in ─────────────────────────�
 - **VIEW** also sets how much the display moves with the beat: Full, Subtle or Off
 - **CAPTURE** hides the header and the small labels for a clean screen recording, leaving a small wordmark.
   Move the mouse and press **EXIT CAPTURE** to go back
-- Presets store the look (theme, custom theme, reactivity, view and panels), with six factory looks in `Assets/Presets/`
+- Presets store the look (theme, custom theme, reactivity, view, panels and their sizes), with six factory looks in `Assets/Presets/`
 
 ## System Requirements
 

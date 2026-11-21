@@ -1,23 +1,7 @@
 // The palettes come from Source/shared/Themes.h in the UI info, as "rrggbb"
-import { listenerSet } from '@samplerealm/modules/backend.ts';
 import type { CustomTheme, ThemeColours } from '../backend.ts';
 
 export type Theme = ThemeColours;
-
-// The custom theme a backend holds, and those listening for it
-export function customThemeStore(initial: CustomTheme) {
-  let custom = initial;
-  const listeners = listenerSet<[CustomTheme]>();
-
-  return {
-    customTheme: () => custom,
-    onCustomTheme: listeners.add,
-    show: (theme: CustomTheme) => {
-      custom = theme;
-      listeners.notify(theme);
-    },
-  };
-}
 
 // Themes::fromHex: six hex digits in either case, with or without a "#" before them
 export const parseHex = (text: string): string | null => /^#?([0-9a-fA-F]{6})$/.exec(text)?.[1].toLowerCase() ?? null;

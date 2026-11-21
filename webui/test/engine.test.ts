@@ -78,12 +78,18 @@ test('starting the transport starts the integrated loudness again, and a reset s
   near(frameOf(played).maxTruePeak!, -20, 0.1, 'true peak');
   near(frameOf(played).integrated!, -20, 0.1, 'integrated');
 
+  // A transport that has never played still counts
   played.engine.setTransport(120, false, 0);
   played.processBlocks(quiet);
-  assert.equal(frameOf(played).integrating, 0);
+  assert.equal(frameOf(played).integrating, 1);
 
   played.engine.setTransport(120, true, 4);
   played.processBlocks(quiet);
   near(frameOf(played).integrated!, -20, 0.1, 'integrated');
   assert.equal(frameOf(played).integrating, 1);
+
+  // Once it has, stopping waits
+  played.engine.setTransport(120, false, 8);
+  played.processBlocks(quiet);
+  assert.equal(frameOf(played).integrating, 0);
 });

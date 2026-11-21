@@ -18,8 +18,8 @@
  * on that editor's thread. The plugin and the web demo's engine share it.
  *
  * Starting playback starts the integrated loudness, the range, the held peaks and the clip
- * count again, and they stop counting while the host is stopped. With no host transport they
- * always count.
+ * count again, and once the host has played they stop counting while it's stopped. With no host
+ * transport, or one that never plays, they always count.
  *
  * A host that stops sending audio stops process(), so updateFrame() lets the display fall away
  * by itself, and shows a reset that process() hasn't yet been able to make.
@@ -67,6 +67,9 @@ private:
     LoudnessMeter loudness;
     TruePeak truePeak;
     bool wasPlaying = false;
+
+    // Kept through prepare(): a host may prepare again as it stops
+    bool hasPlayed = false;
 
     //==============================================================================
     // Between the threads

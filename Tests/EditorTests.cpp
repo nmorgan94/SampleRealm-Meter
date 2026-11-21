@@ -21,11 +21,23 @@ static juce::TextButton& buttonNamed (juce::Component& parent, const juce::Strin
     std::abort();
 }
 
+static juce::MouseEvent mouseEvent (juce::Component& component, juce::Point<int> position, juce::Point<int> pressedAt,
+                                    juce::ModifierKeys button = juce::ModifierKeys::leftButtonModifier)
+{
+    return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), position.toFloat(), button, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                             &component, &component, juce::Time::getCurrentTime(), pressedAt.toFloat(), juce::Time::getCurrentTime(), 1, false);
+}
+
 static void click (juce::Component& component, juce::Point<int> position)
 {
-    const auto event = juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), position.toFloat(), {}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                                         &component, &component, juce::Time::getCurrentTime(), position.toFloat(), juce::Time::getCurrentTime(), 1, false);
-    component.mouseUp (event);
+    component.mouseUp (mouseEvent (component, position, position, {}));
+}
+
+static void drag (juce::Component& component, juce::Point<int> from, juce::Point<int> to,
+                  juce::ModifierKeys button = juce::ModifierKeys::leftButtonModifier)
+{
+    component.mouseDown (mouseEvent (component, from, from, button));
+    component.mouseDrag (mouseEvent (component, to, from, button));
 }
 
 //==============================================================================
@@ -83,6 +95,81 @@ TEST_CASE ("A short dashboard is one row", "[layout]")
     // Two rows from the height where the lower one has room
     CHECK (dashboard ({ 0, 44, 800, rowBelowHeight - 1 })[spectrum].getWidth() == 204);
     CHECK (dashboard ({ 0, 44, 800, rowBelowHeight })[spectrum].getWidth() == 780);
+}
+
+TEST_CASE ("The gaps between the dashboard's panels are its dividers", "[layout]")
+{
+    using namespace DashboardLayout;
+
+    // The same cases as webui/test/dashboardLayout.test.ts
+    const juce::Rectangle<int> bounds { 0, 44, 960, 556 };
+
+    CHECK (dividers (bounds) == std::vector<Divider> { { Group::rows, 0, 1, false, { 10, 293, 940, 10 } },
+                                                       { Group::rows, 1, 2, false, { 10, 406, 940, 10 } },
+                                                       { Group::lower, 0, 1, true, { 382, 416, 10, 174 } } });
+
+    // Between the neighbours that are shown
+    CHECK (dividers (bounds, noWaveform) == std::vector<Divider> { { Group::rows, 0, 2, false, { 10, 359, 940, 10 } },
+                                                                   { Group::lower, 0, 1, true, { 382, 369, 10, 221 } } });
+
+    CHECK (dividers ({ 0, 44, 800, 176 }) == std::vector<Divider> { { Group::oneRow, 0, 1, true, { 214, 54, 10, 156 } },
+                                                                    { Group::oneRow, 1, 2, true, { 428, 54, 10, 156 } },
+                                                                    { Group::oneRow, 2, 3, true, { 574, 54, 10, 156 } } });
+
+    CHECK (dividers (bounds, { false, false, true, false }).empty());
+}
+
+TEST_CASE ("Dragging a divider shares its two neighbours' space again, and moves no other panel", "[layout]")
+{
+    using namespace DashboardLayout;
+
+    const juce::Rectangle<int> bounds { 0, 44, 960, 556 };
+    const auto panels = dashboard (bounds, allShown, dragged (bounds, allShown, {}, dividers (bounds)[0], 30));
+
+    CHECK (panels[spectrum] == juce::Rectangle<int> (10, 54, 940, 269));
+    CHECK (panels[waveform] == juce::Rectangle<int> (10, 333, 940, 73));
+    CHECK (panels[stereo] == juce::Rectangle<int> (10, 416, 372, 174));
+    CHECK (panels[loudness] == juce::Rectangle<int> (392, 416, 558, 174));
+}
+
+TEST_CASE ("A drag that moves nothing leaves the sizes as they were", "[layout]")
+{
+    using namespace DashboardLayout;
+
+    const juce::Rectangle<int> bounds { 0, 44, 960, 556 };
+
+    CHECK (dragged (bounds, allShown, {}, dividers (bounds)[0], 0) == Sizes {});
+}
+
+TEST_CASE ("A drag stops at the smallest a panel can be", "[layout]")
+{
+    using namespace DashboardLayout;
+
+    const juce::Rectangle<int> bounds { 0, 44, 960, 556 };
+    const auto underSpectrum = dividers (bounds)[0];
+
+    CHECK (dashboard (bounds, allShown, dragged (bounds, allShown, {}, underSpectrum, 500))[waveform] == juce::Rectangle<int> (10, 342, 940, minPanelHeight));
+    CHECK (dashboard (bounds, allShown, dragged (bounds, allShown, {}, underSpectrum, -500))[spectrum] == juce::Rectangle<int> (10, 54, 940, minPanelHeight));
+
+    const auto wider = dashboard (bounds, allShown, dragged (bounds, allShown, {}, dividers (bounds)[2], 500));
+    CHECK (wider[stereo] == juce::Rectangle<int> (10, 416, 810, 174));
+    CHECK (wider[loudness] == juce::Rectangle<int> (830, 416, minPanelWidth, 174));
+}
+
+TEST_CASE ("A panel that isn't showing keeps its share through a drag, and a reset puts one group back", "[layout]")
+{
+    using namespace DashboardLayout;
+
+    const juce::Rectangle<int> bounds { 0, 44, 960, 556 };
+
+    const auto withoutWaveform = dragged (bounds, noWaveform, {}, dividers (bounds, noWaveform)[0], -5);
+    CHECK (dashboard (bounds, noWaveform, withoutWaveform)[spectrum].getHeight() == 300);
+    CHECK (dashboard (bounds, allShown, withoutWaveform)[waveform].getHeight() == 103);
+
+    const auto lowerDragged = dragged (bounds, allShown, {}, dividers (bounds)[2], 500);
+    const auto both = dragged (bounds, allShown, lowerDragged, dividers (bounds)[0], 30);
+    CHECK (reset (both, Group::rows) == lowerDragged);
+    CHECK (reset (lowerDragged, Group::lower) == Sizes {});
 }
 
 TEST_CASE ("An expanding panel grows from its place to fill the dashboard", "[layout]")
@@ -291,21 +378,9 @@ TEST_CASE_METHOD (ProcessorFixture, "The custom theme's editor sets the base and
 
     // A swatch pressed after a drag along the hue strip, with the mouse moving on it, only selects
     const auto layout = custom.getLayout();
-    const auto drag = [&custom] (juce::Point<int> from, juce::Point<int> to)
-    {
-        const auto event = [&] (juce::Point<int> position)
-        {
-            return juce::MouseEvent (juce::Desktop::getInstance().getMainMouseSource(), position.toFloat(), {}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                                     &custom, &custom, juce::Time::getCurrentTime(), from.toFloat(), juce::Time::getCurrentTime(), 1, false);
-        };
-
-        custom.mouseDown (event (from));
-        custom.mouseDrag (event (to));
-    };
-
-    drag (layout.hue.getCentre(), layout.hue.getCentre());
+    drag (custom, layout.hue.getCentre(), layout.hue.getCentre());
     const auto picked = processor.getCustomTheme();
-    drag (layout.swatches[CustomThemeEditor::secondary].getCentre(), layout.swatches[CustomThemeEditor::secondary].getCentre().translated (1, 0));
+    drag (custom, layout.swatches[CustomThemeEditor::secondary].getCentre(), layout.swatches[CustomThemeEditor::secondary].getCentre().translated (1, 0));
     CHECK (processor.getCustomTheme() == picked);
 
     // A look or a session loading under the editor shows on the next frame
@@ -381,6 +456,48 @@ TEST_CASE_METHOD (ProcessorFixture, "The view menu shows and hides the dashboard
     viewItem (editor, "Off").action();
     CHECK_THAT (getParameter (processor, Parameters::reactivityId), WithinAbs (0.0, 1.0e-4));
     CHECK (viewItem (editor, "Off").isTicked);
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "Dragging the gap between two panels resizes them, and a double-click there puts them back", "[editor]")
+{
+    AudioPluginAudioProcessorEditor editor (processor);
+    auto& dashboard = editor.getDashboard();
+    auto& spectrum = dashboard.getPanel (DashboardLayout::spectrum);
+
+    const auto height = spectrum.getHeight();
+    const auto gap = dashboard.getDividers()[0].area.getCentre();
+
+    drag (dashboard, gap, gap.translated (0, 30));
+    CHECK (spectrum.getHeight() == height + 30);
+    CHECK (processor.getPanelSizes() != DashboardLayout::Sizes {});
+
+    dashboard.mouseDoubleClick (mouseEvent (dashboard, gap.translated (0, 30), gap.translated (0, 30)));
+    CHECK (spectrum.getHeight() == height);
+    CHECK (processor.getPanelSizes() == DashboardLayout::Sizes {});
+
+    // A look or a session loading under the editor shows on the next frame
+    DashboardLayout::Sizes loaded;
+    loaded.rows = { 1.0, 1.0, 1.0 };
+    processor.setPanelSizes (loaded);
+    editor.showNextFrame (0.0);
+    CHECK (spectrum.getBounds() == DashboardLayout::dashboard (dashboard.getLocalBounds(), DashboardLayout::allShown, loaded)[DashboardLayout::spectrum]);
+
+    // An expanded panel has no gaps to drag
+    setParameter (processor, Parameters::viewId, 1.0f);
+    CHECK (dashboard.getDividers().empty());
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "Only the left button drags a gap, and a press that moves nothing isn't an edit", "[editor]")
+{
+    AudioPluginAudioProcessorEditor editor (processor);
+    auto& dashboard = editor.getDashboard();
+    const auto gap = dashboard.getDividers()[0].area.getCentre();
+
+    drag (dashboard, gap, gap.translated (0, 30), juce::ModifierKeys::rightButtonModifier);
+    CHECK (processor.getPanelSizes() == DashboardLayout::Sizes {});
+
+    drag (dashboard, gap, gap.translated (2, 0));
+    CHECK (processor.getPanelSizes() == DashboardLayout::Sizes {});
 }
 
 TEST_CASE_METHOD (ProcessorFixture, "The dashboard's last panel can't be hidden, and has nothing to expand over", "[editor]")

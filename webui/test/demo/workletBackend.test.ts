@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { EnginePort } from '@samplerealm/modules/demo/workletBackend.ts';
 import { meterWorkletBackend } from '../../src/demo/workletBackend.ts';
+import { defaultSizes } from '../../src/meter/dashboardLayout.ts';
 import { info, meter } from '../engine.ts';
 
 const fakePort = () => {
@@ -71,4 +72,39 @@ test('a look keeps the custom theme, changing it is an edit, and Init clears it'
   const changed = (await backend.presets.list()).find((preset) => preset.name === 'Changed');
   await backend.presets.load(changed!);
   assert.deepEqual(backend.customTheme(), { ...custom, base: 0 });
+});
+
+test("a look keeps the panels' sizes, changing them is an edit, and Init puts them back", async () => {
+  // As PresetManager writes a look
+  const withSizes = `<?xml version="1.0" encoding="UTF-8"?>
+<PRESET name="Mine" category="Dashboard" author="Me" formatVersion="1">
+  <Parameters>
+    <PARAM id="theme" value="1.0"/>
+    <PanelSizes rows="300 131.5 226" lower="40 60" oneRow="3 3 2 3"/>
+  </Parameters>
+</PRESET>`;
+
+  const backend = meterWorkletBackend(info, meter, [withSizes]);
+  const sizes = { ...defaultSizes(), rows: [300, 131.5, 226] };
+  assert.deepEqual(backend.panelSizes(), defaultSizes());
+
+  const [mine] = await backend.presets.list();
+  await backend.presets.load(mine!);
+  assert.deepEqual(backend.panelSizes(), sizes);
+
+  // The same again is no edit
+  backend.setPanelSizes({ ...sizes });
+  assert.equal(backend.presets.status().modified, false);
+
+  backend.setPanelSizes({ ...sizes, lower: [1, 1] });
+  assert.equal(backend.presets.status().modified, true);
+
+  // Saved in the page's own looks too
+  assert.equal(await backend.presets.save('Changed', 'User'), null);
+  await backend.presets.loadInit();
+  assert.deepEqual(backend.panelSizes(), defaultSizes());
+
+  const changed = (await backend.presets.list()).find((preset) => preset.name === 'Changed');
+  await backend.presets.load(changed!);
+  assert.deepEqual(backend.panelSizes(), { ...sizes, lower: [1, 1] });
 });
