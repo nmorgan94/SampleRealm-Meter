@@ -51,8 +51,11 @@ void MeterPanel::paint (juce::Graphics& g)
 
     g.setColour (look.theme.panel);
     g.fillRoundedRectangle (bounds, cornerSize);
-    g.setColour (look.theme.line);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), cornerSize, 1.0f);
+    if (! look.flat)
+    {
+        g.setColour (look.theme.line);
+        g.drawRoundedRectangle (bounds.reduced (0.5f), cornerSize, 1.0f);
+    }
 
     if (! look.capture)
     {

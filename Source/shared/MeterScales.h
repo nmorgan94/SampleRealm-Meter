@@ -9,7 +9,7 @@
 //==============================================================================
 /**
  * Where values sit on the editor's scales, and how fast it moves. meterInfoJson() tells the web UI
- * the numbers; the two functions are also in webui/src/meter/scales.ts.
+ * the numbers; the functions are also in webui/src/meter/scales.ts.
  */
 namespace MeterScales
 {
@@ -43,5 +43,11 @@ namespace MeterScales
     inline float acrossSpectrum (float hz)
     {
         return std::log (hz / MeterFrame::minHz) / std::log (MeterFrame::maxHz / MeterFrame::minHz);
+    }
+
+    /** The frequency that far across the spectrum: acrossSpectrum the other way. */
+    inline float hzAcross (float proportion)
+    {
+        return MeterFrame::minHz * std::pow (MeterFrame::maxHz / MeterFrame::minHz, proportion);
     }
 }

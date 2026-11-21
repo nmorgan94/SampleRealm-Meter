@@ -44,7 +44,7 @@ public:
 
     CustomThemeEditor& getCustomThemeEditor()   { return customTheme; }
 
-    /** The view button's menu: the panels, ticked where the dashboard has them, then the reactivity. */
+    /** The view button's menu: the panels, ticked where the dashboard has them, then the reactivity and the backdrop. */
     juce::PopupMenu viewMenu();
 
     Dashboard& getDashboard()   { return dashboard; }
@@ -63,7 +63,7 @@ private:
                                     [this] (const Themes::Custom& custom)
                                     {
                                         processorRef.setCustomTheme (custom);
-                                        customThemeChanged();
+                                        themeChanged();
                                     } };
     MeterControls controls;
     HeaderBar header { "SampleRealm: METER", headerLayout, processorRef.getPresetManager(), prompt, [this] { manual.show(); },
@@ -71,7 +71,7 @@ private:
     Dashboard dashboard { look };
     juce::TextButton exitCaptureButton { "EXIT CAPTURE" };
 
-    juce::ParameterAttachment themeAttachment, reactivityAttachment, viewAttachment;
+    juce::ParameterAttachment themeAttachment, reactivityAttachment, viewAttachment, backdropAttachment;
     bool viewShown = false;
 
     // By DashboardLayout::Panel
@@ -81,11 +81,11 @@ private:
     std::optional<double> lastFrameTime;
     juce::VBlankAttachment vblank;
 
-    void themeChanged (int theme);
+    /** Shows the theme, the custom theme and the backdrop as they are now. */
+    void themeChanged();
 
     // An edit to the custom theme shows at once; a look or session loading, on the next frame
     Themes::Custom customThemeShown;
-    void customThemeChanged();
 
     /** Adds a choice parameter's values to a menu, the current one ticked. */
     void addChoices (juce::PopupMenu&, const juce::ParameterID&, juce::ParameterAttachment&);

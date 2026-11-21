@@ -1,13 +1,13 @@
 // Mirrors the paint functions of Source/ui/meter: MeterPanel, SpectrumView, StereoFieldView, LoudnessView and WaveformView
 import { juceHeight } from '@samplerealm/modules/editor/fonts.ts';
 import type { Scales } from '../backend.ts';
-import { bottom, right, type Rect } from './rect.ts';
+import { bottom, right, type Point, type Rect } from './rect.ts';
 import type { FrameReader } from './frame.ts';
 import { strokeGlow } from './glow.ts';
 import { acrossSpectrum, proportion } from './scales.ts';
-import { clipsText, hasReading, loudnessText, truePeakText } from './text.ts';
+import { clipsText, frequencyText, hasReading, levelText, loudnessText, truePeakText } from './text.ts';
 import { colour, type Look } from './theme.ts';
-import { BAR_LABEL_HEIGHT, contentBounds, expandButtonBounds, loudnessLayout, PANEL_CORNER, PANEL_INSET, PANEL_TITLE_HEIGHT, SCOPE_MARGIN, SPECTRUM_LABEL_SPACING, spectrumPlot, stereoLayout, waveformColumnX } from './viewLayout.ts';
+import { BAR_LABEL_HEIGHT, contentBounds, expandButtonBounds, loudnessLayout, PANEL_CORNER, PANEL_INSET, PANEL_TITLE_HEIGHT, SCOPE_MARGIN, SPECTRUM_LABEL_SPACING, spectrumPlot, spectrumReadout, stereoLayout, waveformColumnX } from './viewLayout.ts';
 
 type Context = CanvasRenderingContext2D;
 
@@ -65,11 +65,13 @@ export function drawPanel(ctx: Context, panel: Rect, title: string, expanded: bo
   ctx.fillStyle = colour(theme.panel);
   fillRounded(ctx, panel, PANEL_CORNER);
 
-  ctx.strokeStyle = colour(theme.line);
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  roundedRect(ctx, { left: panel.left + 0.5, top: panel.top + 0.5, width: panel.width - 1, height: panel.height - 1 }, PANEL_CORNER);
-  ctx.stroke();
+  if (!look.flat) {
+    ctx.strokeStyle = colour(theme.line);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    roundedRect(ctx, { left: panel.left + 0.5, top: panel.top + 0.5, width: panel.width - 1, height: panel.height - 1 }, PANEL_CORNER);
+    ctx.stroke();
+  }
 
   if (look.capture) return;
 
@@ -141,8 +143,8 @@ function spectrumCurve({ frame, reader, scales }: Scene, plot: Rect, offset: num
 }
 
 // SpectrumView::paintContent
-export function drawSpectrum(ctx: Context, scene: Scene, area: Rect) {
-  const { reader, scales, look } = scene;
+export function drawSpectrum(ctx: Context, scene: Scene, area: Rect, hover: Point | null) {
+  const { frame, reader, scales, look } = scene;
   const { theme } = look;
   const { minHz, maxHz } = reader.layout;
   const amount = glowAmount(scene);
@@ -199,6 +201,18 @@ export function drawSpectrum(ctx: Context, scene: Scene, area: Rect) {
   across.addColorStop(0, colour(theme.primary));
   across.addColorStop(1, colour(theme.secondary));
   strokeGlow(ctx, trace, across, 1.8, amount);
+
+  // SpectrumView::getReadout
+  const readout = hover && !look.capture ? spectrumReadout(plot, hover, reader.layout) : null;
+
+  if (readout) {
+    ctx.fillStyle = colour(theme.dim);
+    ctx.fillRect(readout.line.left, readout.line.top, readout.line.width, readout.line.height);
+
+    ctx.fillStyle = colour(theme.text);
+    ctx.font = font(10);
+    drawText(ctx, `${frequencyText(readout.hz)}  ${levelText(frame[reader.bandsOffset + readout.band])}`, readout.label, readout.labelOnRight ? 'left' : 'right');
+  }
 
   ctx.restore();
 }

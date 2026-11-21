@@ -1,7 +1,7 @@
 // The same cases as the view layout tests in Tests/EditorTests.cpp
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { contentBounds, expandButtonBounds, loudnessLayout, spectrumPlot, stereoLayout, waveformColumnX } from '../src/meter/viewLayout.ts';
+import { contentBounds, expandButtonBounds, loudnessLayout, spectrumPlot, spectrumReadout, stereoLayout, waveformColumnX } from '../src/meter/viewLayout.ts';
 
 const rect = (left: number, top: number, width: number, height: number) => ({ left, top, width, height });
 
@@ -10,6 +10,35 @@ test('a panel\'s content is inside its box, under its title, and its expand butt
   assert.deepEqual(contentBounds(rect(10, 369, 372, 221)), rect(22, 397, 348, 181));
   assert.deepEqual(expandButtonBounds(rect(10, 369, 372, 221)), rect(355, 374, 22, 22));
   assert.deepEqual(spectrumPlot(rect(22, 82, 916, 265)), rect(22, 82, 916, 249));
+});
+
+test("the spectrum's readout has the frequency and the band under a place, and its label beside the line", () => {
+  const plot = rect(22, 82, 916, 249);
+  const layout = { minHz: 20, maxHz: 20000, numBands: 96 };
+
+  const left = spectrumReadout(plot, { x: 22, y: 200 }, layout);
+  assert.deepEqual(left && { ...left, hz: Math.round(left.hz * 1000) / 1000 }, { hz: 20, band: 0, line: rect(22, 82, 1, 249), label: rect(28, 84, 150, 14), labelOnRight: true });
+
+  const middle = spectrumReadout(plot, { x: 480, y: 200 }, layout);
+  assert.ok(middle && Math.abs(middle.hz - 632.4555) < 1e-2, `${middle?.hz} Hz`);
+  assert.equal(middle.band, 48);
+
+  // Near the right edge the label is left of the line
+  const right = spectrumReadout(plot, { x: 930, y: 200 }, layout);
+  assert.equal(right?.band, 95);
+  assert.deepEqual(right?.label, rect(774, 84, 150, 14));
+  assert.equal(right?.labelOnRight, false);
+
+  // Under the plot, on the frequency labels
+  assert.equal(spectrumReadout(plot, { x: 480, y: 331 }, layout), null);
+});
+
+test("the spectrum's readout stays inside a narrow plot, and a plot narrower than its label has none", () => {
+  const layout = { minHz: 20, maxHz: 20000, numBands: 96 };
+
+  // The label fits on neither side of the line
+  assert.deepEqual(spectrumReadout(rect(22, 82, 166, 100), { x: 105, y: 100 }, layout)?.label, rect(22, 84, 150, 14));
+  assert.equal(spectrumReadout(rect(22, 82, 149, 100), { x: 60, y: 100 }, layout), null);
 });
 
 test('the waveform\'s newest column is at the right, and they all move left as the next one fills', () => {

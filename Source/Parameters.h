@@ -20,4 +20,6 @@ namespace Parameters
     inline const juce::ParameterID showWaveformId { ParameterSpecs::showWaveform.id, versionHint };
     inline const juce::ParameterID showStereoId   { ParameterSpecs::showStereo.id, versionHint };
     inline const juce::ParameterID showLoudnessId { ParameterSpecs::showLoudness.id, versionHint };
+
+    inline const juce::ParameterID backdropId { ParameterSpecs::backdrop.id, versionHint };
 }

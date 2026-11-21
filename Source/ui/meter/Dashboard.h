@@ -47,6 +47,7 @@ public:
     std::vector<DashboardLayout::Divider> getDividers() const;
 
     MeterPanel& getPanel (DashboardLayout::Panel panel)   { return *panels[panel]; }
+    SpectrumView& getSpectrum()                           { return spectrum; }
 
 private:
     const MeterLook& look;

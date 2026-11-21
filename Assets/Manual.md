@@ -8,6 +8,7 @@ loudness and true peak. It only listens: the sound passes through unchanged. It 
 The curve shows how loud each frequency is, from 20 Hz at the left to 20 kHz at the right.
 The scale tilts up 4.5 dB an octave, so most music looks about level and a mix that is heavy at one end stands out.
 The thin line above the curve holds the highest level each frequency has reached.
+Move the mouse over the curve to read the frequency under it and the curve's level there, on the tilted scale.
 
 ## Waveform
 
@@ -60,11 +61,12 @@ The size is saved with your project.
 - The theme button lists the colour themes.
 - Edit custom... in that list opens your own theme. Choose the theme it starts from, then set its three colours: click one, and drag in the picker or type a hex colour.
 - VIEW also sets how much the display moves with the beat: Full, Subtle or Off.
+- Backdrop in VIEW puts the meter on flat black, green or blue, to key it out or blend it over video. The curves keep the theme's colours.
 - CAPTURE hides the header and the small labels, for a clean screen recording. Move the mouse and press EXIT CAPTURE to bring them back.
 
 ## Presets
 
-A preset stores the look: the theme and your custom theme, the reactivity, the view, which panels show and their sizes.
+A preset stores the look: the theme and your custom theme, the reactivity, the backdrop, the view, which panels show and their sizes.
 
 - The arrows step through the presets, and the name opens the full list.
 - A * after the name means the look has changed since the preset was loaded.

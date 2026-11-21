@@ -65,6 +65,8 @@ export interface MeterInfo {
   scales: Scales;
   // The built-in themes, by the theme parameter's choices. The choice after them is the custom theme
   themes: ThemeColours[];
+  // The flat colours of the backdrop parameter's choices after its first, which is the theme's own
+  backdrops: string[];
   // The custom theme before the user has changed it
   customTheme: CustomTheme;
 }

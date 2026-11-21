@@ -20,6 +20,7 @@ in ─────────────────────────�
 - 4096-point FFT at 44.1 and 48 kHz, longer at higher rates so the window covers about the same time
 - Tilted up 4.5 dB/oct around 1 kHz, so most music reads about level
 - Rises fast and falls 24 dB a second, with a thin line holding each band's highest level
+- The mouse over it reads the frequency there and that band's level
 
 ### Waveform
 
@@ -68,9 +69,11 @@ in ─────────────────────────�
 - Five colour themes: Neon, Ember, Phosphor, Ultraviolet and Ice, chosen from the theme button's menu
 - A custom theme: one of the five with its three accent colours changed, by a picker or as hex. **Edit custom...** in the theme menu
 - **VIEW** also sets how much the display moves with the beat: Full, Subtle or Off
+- **VIEW** sets the backdrop too: the theme's own, or flat black, green or blue with no panel outlines, to key the meter over video.
+  The header keeps the theme
 - **CAPTURE** hides the header and the small labels for a clean screen recording, leaving a small wordmark.
   Move the mouse and press **EXIT CAPTURE** to go back
-- Presets store the look (theme, custom theme, reactivity, view, panels and their sizes), with six factory looks in `Assets/Presets/`
+- Presets store the look (theme, custom theme, reactivity, backdrop, view, panels and their sizes), with six factory looks in `Assets/Presets/`
 
 ## System Requirements
 
@@ -181,7 +184,7 @@ AU) and `Meter-Windows.tar.gz` (VST3). They are unsigned.
 
 `Source/shared/ParameterSpecs.h` is the only parameter list, read by the plugin, the wasm engine and
 the web UI. The snapshot test in `Tests/ProcessorTests.cpp` pins what hosts and saved sessions see.
-The parameters (theme, reactivity, view, and one per panel to show it) only change the look, and hosts can't automate them.
+The parameters (theme, reactivity, view, one per panel to show it, and backdrop) only change the look, and hosts can't automate them.
 The custom theme's colours aren't parameters: they are a `CustomTheme` in the state beside them (`Source/CustomThemeState.h`).
 
 ## Engine and Editors

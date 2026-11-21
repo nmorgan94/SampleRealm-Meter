@@ -11,6 +11,12 @@ namespace
         return *found;
     }
 
+    int choiceIndex (AudioPluginAudioProcessor& processor, const juce::ParameterID& id)
+    {
+        auto& choice = parameter (processor, id);
+        return juce::roundToInt (choice.convertFrom0to1 (choice.getValue()));
+    }
+
     struct PanelControl
     {
         DashboardLayout::Panel panel;
@@ -30,7 +36,7 @@ namespace
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p),
-      themeAttachment (parameter (p, Parameters::themeId), [this] (float value) { themeChanged (juce::roundToInt (value)); }),
+      themeAttachment (parameter (p, Parameters::themeId), [this] (float) { themeChanged(); }),
       reactivityAttachment (parameter (p, Parameters::reactivityId), [this] (float value)
       {
           const auto index = static_cast<size_t> (juce::jlimit (0, static_cast<int> (MeterScales::reactivityAmounts.size()) - 1, juce::roundToInt (value)));
@@ -41,6 +47,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
           // The first time, the editor opens already in the view
           dashboard.setView (juce::roundToInt (value), std::exchange (viewShown, true));
       }),
+      backdropAttachment (parameter (p, Parameters::backdropId), [this] (float) { themeChanged(); }),
       vblank (this, [this] (double now)
       {
           // The first frame comes no time after anything
@@ -119,31 +126,29 @@ AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 }
 
 //==============================================================================
-void AudioPluginAudioProcessorEditor::themeChanged (int theme)
+void AudioPluginAudioProcessorEditor::themeChanged()
 {
-    const auto index = juce::jlimit (0, static_cast<int> (ParameterSpecs::themeNames.size()) - 1, theme);
+    const auto index = juce::jlimit (0, static_cast<int> (ParameterSpecs::themeNames.size()) - 1, choiceIndex (processorRef, Parameters::themeId));
+    const auto backdrop = choiceIndex (processorRef, Parameters::backdropId);
 
     customThemeShown = processorRef.getCustomTheme();
-    look.theme = MeterTheme::of (Themes::paletteOf (index, customThemeShown));
+    const auto palette = Themes::paletteOf (index, customThemeShown);
+
+    // The header, the menus and the overlays keep the theme
+    look.theme = MeterTheme::of (Themes::withBackdrop (palette, backdrop));
+    look.flat = Themes::isFlat (backdrop);
     controls.setThemeName (ParameterSpecs::themeNames[static_cast<size_t> (index)]);
-    customLookAndFeel.setTheme (look.theme);
+    customLookAndFeel.setTheme (MeterTheme::of (palette));
     sendLookAndFeelChange();
     repaint();
 }
 
-void AudioPluginAudioProcessorEditor::customThemeChanged()
-{
-    auto& theme = parameter (processorRef, Parameters::themeId);
-    themeChanged (juce::roundToInt (theme.convertFrom0to1 (theme.getValue())));
-}
-
 void AudioPluginAudioProcessorEditor::addChoices (juce::PopupMenu& menu, const juce::ParameterID& id, juce::ParameterAttachment& attachment)
 {
-    auto& choice = parameter (processorRef, id);
-    const auto current = juce::roundToInt (choice.convertFrom0to1 (choice.getValue()));
+    const auto current = choiceIndex (processorRef, id);
     auto index = 0;
 
-    for (const auto& name : choice.getAllValueStrings())
+    for (const auto& name : parameter (processorRef, id).getAllValueStrings())
     {
         menu.addItem (juce::PopupMenu::Item (name)
                           .setTicked (index == current)
@@ -201,6 +206,8 @@ juce::PopupMenu AudioPluginAudioProcessorEditor::viewMenu()
 
     menu.addSectionHeader ("Reactivity");
     addChoices (menu, Parameters::reactivityId, reactivityAttachment);
+    menu.addSectionHeader ("Backdrop");
+    addChoices (menu, Parameters::backdropId, backdropAttachment);
     return menu;
 }
 
@@ -223,7 +230,7 @@ void AudioPluginAudioProcessorEditor::showNextFrame (double seconds)
     // A look or session loading. The custom theme's editor and a drag in the dashboard show their own edits
     if (processorRef.getCustomTheme() != customThemeShown)
     {
-        customThemeChanged();
+        themeChanged();
 
         if (customTheme.isVisible())
             customTheme.refresh();

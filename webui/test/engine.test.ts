@@ -16,6 +16,7 @@ test('the ui info carries the version, the commit, the build type and every para
     { id: 'reactivity', name: 'Reactivity', kind: 'choice', min: 0, max: 2, defaultValue: 2, step: 1, skew: 1, unit: '', choices: ['Off', 'Subtle', 'Full'] },
     { id: 'view', name: 'View', kind: 'choice', min: 0, max: 4, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Dashboard', 'Spectrum', 'Stereo', 'Loudness', 'Waveform'] },
     ...['Spectrum', 'Waveform', 'Stereo', 'Loudness'].map((panel) => ({ id: `show${panel}`, name: `Show ${panel}`, kind: 'toggle', min: 0, max: 1, defaultValue: 1, step: 1, skew: 1, unit: '', choices: [] })),
+    { id: 'backdrop', name: 'Backdrop', kind: 'choice', min: 0, max: 3, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Theme', 'Black', 'Green', 'Blue'] },
   ]);
 });
 

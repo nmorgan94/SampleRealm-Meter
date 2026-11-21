@@ -1,5 +1,6 @@
 #include "SpectrumView.h"
 #include "Glow.h"
+#include "MeterText.h"
 #include "../../shared/MeterScales.h"
 
 juce::Path SpectrumView::curve (juce::Rectangle<float> plot, int offset) const
@@ -30,6 +31,44 @@ juce::Path SpectrumView::curve (juce::Rectangle<float> plot, int offset) const
     path.lineTo (plot.getRight(), previous.y);
     return path;
 }
+
+std::optional<SpectrumView::Readout> SpectrumView::readoutAt (juce::Rectangle<float> plot, juce::Point<float> point)
+{
+    if (plot.getWidth() < readoutWidth || ! plot.contains (point))
+        return {};
+
+    const auto x = point.x;
+    const auto across = MeterScales::proportion (x, plot.getX(), plot.getRight());
+    const auto fitsRight = x + readoutGap + readoutWidth <= plot.getRight();
+    const auto labelX = juce::jlimit (plot.getX(), plot.getRight() - readoutWidth, fitsRight ? x + readoutGap : x - readoutGap - readoutWidth);
+
+    return Readout { MeterScales::hzAcross (across),
+                     juce::jmin (MeterFrame::numBands - 1, static_cast<int> (across * MeterFrame::numBands)),
+                     { std::floor (x), plot.getY(), 1.0f, plot.getHeight() },
+                     { labelX, plot.getY() + 2.0f, readoutWidth, readoutHeight },
+                     fitsRight };
+}
+
+std::optional<SpectrumView::Readout> SpectrumView::getReadout() const
+{
+    if (look.capture || ! hover.has_value())
+        return {};
+
+    return readoutAt (plotIn (getContentBounds().toFloat()), *hover);
+}
+
+void SpectrumView::setHover (std::optional<juce::Point<float>> to)
+{
+    const auto shown = getReadout().has_value();
+    hover = to;
+
+    if (shown || getReadout().has_value())
+        repaint();
+}
+
+void SpectrumView::mouseMove (const juce::MouseEvent& event)   { setHover (event.position); }
+void SpectrumView::mouseDrag (const juce::MouseEvent& event)   { setHover (event.position); }
+void SpectrumView::mouseExit (const juce::MouseEvent&)         { setHover ({}); }
 
 void SpectrumView::paintContent (juce::Graphics& g, juce::Rectangle<float> area)
 {
@@ -97,4 +136,15 @@ void SpectrumView::paintContent (juce::Graphics& g, juce::Rectangle<float> area)
     g.strokePath (curve (plot, MeterFrame::peaksOffset), juce::PathStrokeType (1.0f));
 
     Glow::stroke (g, trace, juce::ColourGradient::horizontal (theme.primary, plot.getX(), theme.secondary, plot.getRight()), 1.8f, amount);
+
+    if (const auto readout = getReadout())
+    {
+        g.setColour (theme.dim);
+        g.fillRect (readout->line);
+
+        g.setColour (theme.text);
+        g.setFont (font (10.0f));
+        g.drawText (MeterText::frequency (readout->hz) + "  " + MeterText::level (frame[static_cast<size_t> (MeterFrame::bandsOffset + readout->band)]),
+                    readout->label, readout->labelOnRight ? juce::Justification::centredLeft : juce::Justification::centredRight, false);
+    }
 }

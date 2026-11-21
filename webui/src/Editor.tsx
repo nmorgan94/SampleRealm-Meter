@@ -13,7 +13,7 @@ import { CustomThemeEditor, useCustomTheme } from './meter/CustomThemeEditor.tsx
 import { Dashboard } from './meter/Dashboard.tsx';
 import { PADDING } from './meter/dashboardLayout.ts';
 import { CONTROLS_WIDTH, MeterControls, useShown } from './meter/MeterControls.tsx';
-import { choiceAt, themeOf, themeVariables, type Look } from './meter/theme.ts';
+import { choiceAt, colour, isFlat, themeOf, themeVariables, withBackdrop, type Look } from './meter/theme.ts';
 
 // Source/shared/EditorSize.h's default. The plugin's window can be dragged to other sizes, and the editor fills it
 export const EDITOR_WIDTH = 960;
@@ -59,6 +59,7 @@ export const Editor = memo(function Editor({ backend }: { backend: MeterBackend 
   const theme = useParam(backend, 'theme');
   const reactivity = useParam(backend, 'reactivity');
   const view = useParam(backend, 'view');
+  const backdrop = useParam(backend, 'backdrop');
   const { shown } = useShown(backend);
 
   // Clean capture mode: only the meter, with no header or labels
@@ -79,14 +80,13 @@ export const Editor = memo(function Editor({ backend }: { backend: MeterBackend 
 
   const amounts = backend.meter.scales.reactivityAmounts;
 
-  const look = useMemo<Look>(
-    () => ({
-      theme: themeOf(backend.meter.themes, theme.value, custom),
-      reactivity: choiceAt(amounts, reactivity.value),
-      capture,
-    }),
-    [backend, amounts, theme.value, custom, reactivity.value, capture]
-  );
+  // The header, the menus and the overlays keep the theme
+  const plain = useMemo(() => themeOf(backend.meter.themes, theme.value, custom), [backend, theme.value, custom]);
+
+  const look = useMemo<Look>(() => {
+    const { backdrops } = backend.meter;
+    return { theme: withBackdrop(plain, backdrops, backdrop.value), reactivity: choiceAt(amounts, reactivity.value), capture, flat: isFlat(backdrops, backdrop.value) };
+  }, [backend, amounts, plain, backdrop.value, reactivity.value, capture]);
 
   const leaveCapture = () => {
     clearTimeout(exitTimer.current);
@@ -108,7 +108,7 @@ export const Editor = memo(function Editor({ backend }: { backend: MeterBackend 
 
   return (
     <EditorRootContext.Provider value={root}>
-      <div ref={setRoot} className="editor relative size-full overflow-hidden bg-background" style={themeVariables(look.theme) as CSSProperties} onPointerMove={showExit}>
+      <div ref={setRoot} className="editor relative size-full overflow-hidden" style={{ ...themeVariables(plain), backgroundColor: colour(look.theme.background) } as CSSProperties} onPointerMove={showExit}>
         {width > 0 && height > 0 && (
           <>
             <Dashboard backend={backend} look={look} view={Math.round(view.value)} shown={shown} bounds={dashboard} onViewChosen={view.commit} />

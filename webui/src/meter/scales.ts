@@ -2,3 +2,5 @@
 export const proportion = (value: number, bottom: number, top: number) => Math.min(1, Math.max(0, (value - bottom) / (top - bottom)));
 
 export const acrossSpectrum = (hz: number, minHz: number, maxHz: number) => Math.log(hz / minHz) / Math.log(maxHz / minHz);
+
+export const hzAcross = (across: number, minHz: number, maxHz: number) => minHz * (maxHz / minHz) ** across;

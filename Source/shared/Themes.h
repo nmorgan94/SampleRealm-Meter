@@ -75,6 +75,24 @@ namespace Themes
     }
 
     //==============================================================================
+    // The flat colours after ParameterSpecs::backdropNames' "Theme". Pure green and blue are what video
+    // editors key out, and black is for laying the meter over video with a screen or add blend
+    inline constexpr std::array<std::uint32_t, 3> backdrops { 0x000000, 0x00ff00, 0x0000ff };
+    static_assert (ParameterSpecs::backdropNames.size() == backdrops.size() + 1);
+
+    /** Whether a value of the backdrop parameter is one of the flat colours. */
+    constexpr bool isFlat (int backdrop)   { return backdrop >= 1 && backdrop <= static_cast<int> (backdrops.size()); }
+
+    /** The palette over a backdrop: the window and the panels in its one colour. */
+    constexpr Palette withBackdrop (Palette palette, int backdrop)
+    {
+        if (isFlat (backdrop))
+            palette.background = palette.panel = backdrops[static_cast<size_t> (backdrop - 1)];
+
+        return palette;
+    }
+
+    //==============================================================================
     /** A colour as "rrggbb", as saved and as the web UI has it. */
     inline std::string toHex (std::uint32_t colour)
     {

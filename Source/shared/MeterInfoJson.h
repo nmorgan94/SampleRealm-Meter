@@ -24,6 +24,7 @@ inline std::string meterInfoJson()
     };
 
     const auto whole = [] (int value) { return std::to_string (value); };
+    const auto hex = [] (std::uint32_t colour) { return quoted (Themes::toHex (colour).c_str()); };
 
     std::string json = "{\"frame\":{\"scalars\":[" + joined (MeterFrame::scalarNames, quoted);
     json += "],\"numBands\":" + std::to_string (MeterFrame::numBands);
@@ -54,17 +55,19 @@ inline std::string meterInfoJson()
         json += (i == 0 ? "{" : ",{");
 
         for (size_t c = 0; c < colours.size(); ++c)
-            json += (c == 0 ? "" : ",") + quoted (Themes::colourNames[c]) + ":" + quoted (Themes::toHex (colours[c]).c_str());
+            json += (c == 0 ? "" : ",") + quoted (Themes::colourNames[c]) + ":" + hex (colours[c]);
 
         json += "}";
     }
 
+    json += "],\"backdrops\":[" + joined (Themes::backdrops, hex);
+
     // The custom theme before the user has changed it
     const Themes::Custom custom;
     json += "],\"customTheme\":{\"base\":" + std::to_string (custom.base);
-    json += ",\"primary\":" + quoted (Themes::toHex (custom.primary).c_str());
-    json += ",\"secondary\":" + quoted (Themes::toHex (custom.secondary).c_str());
-    json += ",\"hot\":" + quoted (Themes::toHex (custom.hot).c_str());
+    json += ",\"primary\":" + hex (custom.primary);
+    json += ",\"secondary\":" + hex (custom.secondary);
+    json += ",\"hot\":" + hex (custom.hot);
 
     return json + "}}";
 }

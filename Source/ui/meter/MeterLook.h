@@ -27,4 +27,5 @@ struct MeterLook
     MeterTheme theme = MeterTheme::of (0);
     float reactivity = 1.0f;   // one of MeterScales::reactivityAmounts
     bool capture = false;      // clean capture mode: no titles or small labels
+    bool flat = false;         // over a backdrop: no outlines round the panels
 };

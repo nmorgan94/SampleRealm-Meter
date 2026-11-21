@@ -28,6 +28,18 @@ namespace MeterText
         return tenths > 0 ? "+" + text : tenths < 0 ? "-" + text : text;
     }
 
+    /** In Hz up to a thousand, then in kHz to three figures. */
+    inline juce::String frequency (float hz)
+    {
+        if (hz < 999.5f)
+            return juce::String (juce::roundToInt (hz)) + " Hz";
+
+        return juce::String (hz / 1000.0f, hz < 9995.0f ? 2 : 1) + " kHz";
+    }
+
+    /** dB to one place. */
+    inline juce::String level (float db)   { return juce::String (db, 1) + " dB"; }
+
     inline juce::String clips (float count)
     {
         return count > 999.0f ? juce::String ("999+") : juce::String (juce::roundToInt (count));

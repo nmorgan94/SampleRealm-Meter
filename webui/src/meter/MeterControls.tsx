@@ -34,11 +34,11 @@ const layOut = ({ left, top, width, height }: Rect) => {
 };
 
 // AudioPluginAudioProcessorEditor::addChoices: a choice parameter's values, the current one ticked
-const choiceItems =(choices: string[], current: number, onSelect: (index: number) => void): MenuItem[] =>
-  choices.map((label, index) => ({ kind: 'item', label, ticked: index === current, onSelect: () => onSelect(index) }));
+const choiceItems = ({ param, value, commit }: ReturnType<typeof useParam>): MenuItem[] =>
+  param.choices.map((label, index) => ({ kind: 'item', label, ticked: index === Math.round(value), onSelect: () => commit(index) }));
 
-// AudioPluginAudioProcessorEditor::viewMenu: the panels, ticked where the dashboard has them, then the reactivity
-export function viewMenu(shown: Shown, setShown: (panel: Panel, on: boolean) => void, reactivity: MenuItem[]): MenuItem[] {
+// AudioPluginAudioProcessorEditor::viewMenu: the panels, ticked where the dashboard has them, then the reactivity and the backdrop
+export function viewMenu(shown: Shown, setShown: (panel: Panel, on: boolean) => void, reactivity: MenuItem[], backdrop: MenuItem[]): MenuItem[] {
   const numShown = PANEL_CONTROLS.filter(({ panel }) => shown[panel]).length;
 
   return [
@@ -47,6 +47,8 @@ export function viewMenu(shown: Shown, setShown: (panel: Panel, on: boolean) => 
     ...PANEL_CONTROLS.map(({ panel, name }): MenuItem => ({ kind: 'item', label: name, ticked: shown[panel], disabled: shown[panel] && numShown <= 1, onSelect: () => setShown(panel, !shown[panel]) })),
     { kind: 'header', label: 'Reactivity' },
     ...reactivity,
+    { kind: 'header', label: 'Backdrop' },
+    ...backdrop,
   ];
 }
 
@@ -63,8 +65,8 @@ export function useShown(backend: MeterBackend) {
 }
 
 // AudioPluginAudioProcessorEditor::themeMenu: every theme, then the way to the custom theme's editor
-export const themeMenu = (choices: string[], current: number, onSelect: (index: number) => void, onEditCustom: () => void): MenuItem[] => [
-  ...choiceItems(choices, current, onSelect),
+export const themeMenu = (theme: ReturnType<typeof useParam>, onEditCustom: () => void): MenuItem[] => [
+  ...choiceItems(theme),
   { kind: 'separator' },
   { kind: 'item', label: 'Edit custom...', onSelect: onEditCustom },
 ];
@@ -79,6 +81,7 @@ interface MeterControlsProps {
 export function MeterControls({ backend, bounds, onCapture, onEditCustom }: MeterControlsProps) {
   const theme = useParam(backend, 'theme');
   const reactivity = useParam(backend, 'reactivity');
+  const backdrop = useParam(backend, 'backdrop');
   const { shown, setShown } = useShown(backend);
   const menu = useMenu();
   const boxes = layOut(bounds);
@@ -89,12 +92,12 @@ export function MeterControls({ backend, bounds, onCapture, onEditCustom }: Mete
         text={formatValue(theme.param, theme.value).toUpperCase()}
         label="Theme"
         style={boxes.theme}
-        onClick={(e) => menu.open(e.currentTarget, themeMenu(theme.param.choices, Math.round(theme.value), theme.commit, onEditCustom))}
+        onClick={(e) => menu.open(e.currentTarget, themeMenu(theme, onEditCustom))}
       />
       <TextButton
         text="VIEW"
         style={boxes.view}
-        onClick={(e) => menu.open(e.currentTarget, viewMenu(shown, setShown, choiceItems(reactivity.param.choices, Math.round(reactivity.value), reactivity.commit)))}
+        onClick={(e) => menu.open(e.currentTarget, viewMenu(shown, setShown, choiceItems(reactivity), choiceItems(backdrop)))}
       />
       {menu.element}
       <TextButton text="RESET" style={boxes.reset} onClick={() => backend.resetMeters()} />

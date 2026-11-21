@@ -1,5 +1,7 @@
 // Mirrors the layOut functions of Source/ui/meter's views and MeterPanel's bounds, with the same tests
-import { bottom, EMPTY, right, type Rect } from './rect.ts';
+import type { FrameLayout } from '../backend.ts';
+import { bottom, contains, EMPTY, right, type Point, type Rect } from './rect.ts';
+import { hzAcross, proportion } from './scales.ts';
 
 // MeterPanel
 export const PANEL_INSET = 12;
@@ -27,6 +29,37 @@ export const SPECTRUM_LABEL_HEIGHT = 16;
 export const SPECTRUM_LABEL_SPACING = 30;
 
 export const spectrumPlot = (area: Rect): Rect => ({ ...area, height: area.height - SPECTRUM_LABEL_HEIGHT });
+
+const READOUT_WIDTH = 150;
+const READOUT_HEIGHT = 14;
+const READOUT_GAP = 6;
+
+// What the mouse is over: its frequency, the band there, a line down the plot and where the reading is written
+export interface SpectrumReadout {
+  hz: number;
+  band: number;
+  line: Rect;
+  label: Rect;
+  labelOnRight: boolean;
+}
+
+// SpectrumView::readoutAt: none outside the plot, or where the plot is narrower than the label. The label is right
+// of the line, or left of it near the plot's right edge, and kept inside the plot
+export function spectrumReadout(plot: Rect, { x, y }: Point, { minHz, maxHz, numBands }: Pick<FrameLayout, 'minHz' | 'maxHz' | 'numBands'>): SpectrumReadout | null {
+  if (plot.width < READOUT_WIDTH || !contains(plot, x, y)) return null;
+
+  const across = proportion(x, plot.left, right(plot));
+  const fitsRight = x + READOUT_GAP + READOUT_WIDTH <= right(plot);
+  const labelLeft = Math.min(right(plot) - READOUT_WIDTH, Math.max(plot.left, fitsRight ? x + READOUT_GAP : x - READOUT_GAP - READOUT_WIDTH));
+
+  return {
+    hz: hzAcross(across, minHz, maxHz),
+    band: Math.min(numBands - 1, Math.trunc(across * numBands)),
+    line: { left: Math.floor(x), top: plot.top, width: 1, height: plot.height },
+    label: { left: labelLeft, top: plot.top + 2, width: READOUT_WIDTH, height: READOUT_HEIGHT },
+    labelOnRight: fitsRight,
+  };
+}
 
 //==============================================================================
 // WaveformView::columnX: where a column is across the plot, the newest at its right edge. The phase, how much of

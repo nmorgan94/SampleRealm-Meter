@@ -2,7 +2,7 @@
 // dashboard while the others fade out
 import { useEffect, useRef } from 'react';
 import type { MeterBackend, PanelSizes } from '../backend.ts';
-import { contains, type Rect } from './rect.ts';
+import { contains, type Point, type Rect } from './rect.ts';
 import { dividers, dragged, ease, expanding, PANELS, reset, sameSizes, type Divider, type Panel, type Shown } from './dashboardLayout.ts';
 import { drawLoudness, drawPanel, drawSpectrum, drawStereo, drawWaveform, hasRoom, stereoTrace, type Scene } from './draw.ts';
 import { frameReader } from './frame.ts';
@@ -32,7 +32,20 @@ export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: 
   const canvas = useRef<HTMLCanvasElement>(null);
 
   // What the drawing loop reads, kept out of React's renders. The sizes come straight from the backend, so a drag renders nothing
-  const live = useRef({ look, view, shown, sizes: backend.panelSizes(), bounds, onViewChosen, expanded: 'spectrum' as Panel, expansion: 0, opened: false, changed: true });
+  const live = useRef({
+    look,
+    view,
+    shown,
+    sizes: backend.panelSizes(),
+    bounds,
+    onViewChosen,
+    expanded: 'spectrum' as Panel,
+    expansion: 0,
+    opened: false,
+    changed: true,
+    // Where the mouse is, for the spectrum's readout
+    hover: null as Point | null,
+  });
   const state = live.current;
 
   // The gap last pressed, with the sizes and the place the press began
@@ -68,6 +81,15 @@ export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: 
 
   // Not for the dashboard's only panel, which has nothing to expand over
   const isExpandable = () => state.view !== DASHBOARD_VIEW || PANELS.filter((panel) => state.shown[panel]).length > 1;
+
+  // The panel under a point: the expanded one is over the others
+  const panelAt = (x: number, y: number) => {
+    const panels = panelsNow();
+    const order = state.expansion > 0 ? [state.expanded, ...PANELS.filter((p) => p !== state.expanded)] : PANELS;
+    return order.filter(isVisible).find((p) => contains(panels[p], x, y));
+  };
+
+  const overSpectrum = (at: Point | null) => (at && panelAt(at.x, at.y) === 'spectrum' ? at : null);
 
   useEffect(() => {
     const element = canvas.current;
@@ -121,6 +143,7 @@ export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: 
       const scene: Scene = { frame, reader, scales, look: state.look };
       const panels = panelsNow();
       const eased = ease(state.expansion);
+      const spectrumHover = overSpectrum(state.hover);
 
       if (fresh) {
         trace.advance(scene, panels.stereo, Math.min(MAX_FRAME_SECONDS, (now - lastFrame) / 1000));
@@ -144,7 +167,7 @@ export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: 
 
         if (hasRoom(panels[panel])) {
           const area = contentBounds(panels[panel]);
-          if (panel === 'spectrum') drawSpectrum(ctx, scene, area);
+          if (panel === 'spectrum') drawSpectrum(ctx, scene, area, spectrumHover);
           else if (panel === 'stereo') drawStereo(ctx, scene, area, trace);
           else if (panel === 'loudness') drawLoudness(ctx, scene, area);
           else drawWaveform(ctx, scene, area);
@@ -163,14 +186,18 @@ export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: 
     };
   }, [backend, state]);
 
+  // Only the spectrum draws the mouse, so a move elsewhere needs no redraw
+  const hoverAt = (to: Point | null) => {
+    if (overSpectrum(state.hover) || overSpectrum(to)) state.changed = true;
+    state.hover = to;
+  };
+
   // The panel under a point, and what a click there does
   const hit = (x: number, y: number) => {
-    const panels = panelsNow();
-    const order = state.expansion > 0 ? [state.expanded, ...PANELS.filter((p) => p !== state.expanded)] : PANELS;
-    const panel = order.filter(isVisible).find((p) => contains(panels[p], x, y));
+    const panel = panelAt(x, y);
     if (!panel || !isExpandable()) return null;
 
-    const onButton = !state.look.capture && contains(expandButtonBounds(panels[panel]), x, y);
+    const onButton = !state.look.capture && contains(expandButtonBounds(panelsNow()[panel]), x, y);
     return { panel, onButton };
   };
 
@@ -197,7 +224,10 @@ export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: 
         const { x, y } = point(e);
         const divider = e.button === 0 ? dividerAt(x, y) : undefined;
         pressed.current = divider ? { divider, from: state.sizes, x, y } : null;
-        if (divider) e.currentTarget.setPointerCapture(e.pointerId);
+        if (!divider) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        // The panels move under the point while it drags
+        hoverAt(null);
       }}
       onClick={(e) => {
         // A drag let go over a panel's button isn't a click on it
@@ -213,6 +243,7 @@ export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: 
         if (divider) backend.setPanelSizes(reset(state.sizes, divider.group));
         else if (found && !found.onButton) toggle(found.panel);
       }}
+      onPointerLeave={() => hoverAt(null)}
       onPointerMove={(e) => {
         const { x, y } = point(e);
         const held = pressed.current;
@@ -223,6 +254,7 @@ export function Dashboard({ backend, look, view, shown, bounds, onViewChosen }: 
           return;
         }
 
+        hoverAt({ x, y });
         const divider = dividerAt(x, y);
         e.currentTarget.style.cursor = divider ? (divider.across ? 'col-resize' : 'row-resize') : hit(x, y)?.onButton ? 'pointer' : 'default';
       }}

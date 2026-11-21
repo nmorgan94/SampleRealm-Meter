@@ -29,6 +29,7 @@ TEST_CASE_METHOD (ProcessorFixture, "Parameters match the snapshot hosts rely on
         { "showWaveform", 1, "Show Waveform", "", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, { "Off", "On", "On" } },
         { "showStereo", 1, "Show Stereo", "", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, { "Off", "On", "On" } },
         { "showLoudness", 1, "Show Loudness", "", 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, { "Off", "On", "On" } },
+        { "backdrop", 1, "Backdrop", "", 0.0f, 3.0f, 1.0f, 1.0f, 0.0f, { "Theme", "Green", "Blue" } },
     };
 
     const auto& parameters = processor.getParameters();

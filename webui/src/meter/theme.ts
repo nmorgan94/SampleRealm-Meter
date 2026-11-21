@@ -10,6 +10,17 @@ export const parseHex = (text: string): string | null => /^#?([0-9a-fA-F]{6})$/.
 export const themeOf = (themes: Theme[], index: number, custom: CustomTheme): Theme =>
   Math.round(index) < themes.length ? choiceAt(themes, index) : { ...choiceAt(themes, custom.base), primary: custom.primary, secondary: custom.secondary, hot: custom.hot };
 
+// Themes::isFlat: whether a value of the backdrop parameter is one of the flat colours
+export const isFlat = (backdrops: string[], backdrop: number) => Math.round(backdrop) >= 1 && Math.round(backdrop) <= backdrops.length;
+
+// Themes::withBackdrop: the theme over a value of the backdrop parameter, with the window and the panels in its one colour
+export function withBackdrop(theme: Theme, backdrops: string[], backdrop: number): Theme {
+  if (!isFlat(backdrops, backdrop)) return theme;
+
+  const flat = backdrops[Math.round(backdrop) - 1];
+  return { ...theme, background: flat, panel: flat };
+}
+
 // CustomThemeState::from: anything missing or that isn't a colour keeps its default
 export function sanitiseCustomTheme(value: Partial<Record<keyof CustomTheme, unknown>> | undefined, defaults: CustomTheme, numThemes: number): CustomTheme {
   const base = Number(value?.base);
@@ -30,6 +41,8 @@ export interface Look {
   reactivity: number;
   // Clean capture mode: no titles or small labels
   capture: boolean;
+  // Over a backdrop: no outlines round the panels
+  flat: boolean;
 }
 
 export const colour = (hex: string, alpha = 1) => {

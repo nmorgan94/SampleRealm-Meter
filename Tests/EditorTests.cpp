@@ -207,6 +207,49 @@ TEST_CASE ("Values sit on the scales where the web UI puts them", "[layout]")
     CHECK_THAT (acrossSpectrum (20.0f), WithinAbs (0.0, 1.0e-6));
     CHECK_THAT (acrossSpectrum (1000.0f), WithinAbs (0.566323, 1.0e-5));
     CHECK_THAT (acrossSpectrum (20000.0f), WithinAbs (1.0, 1.0e-6));
+
+    CHECK_THAT (hzAcross (0.0f), WithinAbs (20.0, 1.0e-3));
+    CHECK_THAT (hzAcross (0.5f), WithinAbs (632.4555, 1.0e-2));
+    CHECK_THAT (hzAcross (1.0f), WithinAbs (20000.0, 1.0));
+}
+
+TEST_CASE ("The spectrum's readout has the frequency and the band under a place, and its label beside the line", "[layout]")
+{
+    // The same cases as webui/test/viewLayout.test.ts
+    const juce::Rectangle<float> plot (22.0f, 82.0f, 916.0f, 249.0f);
+
+    const auto left = SpectrumView::readoutAt (plot, { 22.0f, 200.0f });
+    REQUIRE (left.has_value());
+    CHECK_THAT (left->hz, WithinAbs (20.0, 1.0e-3));
+    CHECK (left->band == 0);
+    CHECK (left->line == juce::Rectangle<float> (22.0f, 82.0f, 1.0f, 249.0f));
+    CHECK (left->label == juce::Rectangle<float> (28.0f, 84.0f, 150.0f, 14.0f));
+    CHECK (left->labelOnRight);
+
+    const auto middle = SpectrumView::readoutAt (plot, { 480.0f, 200.0f });
+    REQUIRE (middle.has_value());
+    CHECK_THAT (middle->hz, WithinAbs (632.4555, 1.0e-2));
+    CHECK (middle->band == 48);
+
+    // Near the right edge the label is left of the line
+    const auto right = SpectrumView::readoutAt (plot, { 930.0f, 200.0f });
+    REQUIRE (right.has_value());
+    CHECK (right->band == 95);
+    CHECK (right->label == juce::Rectangle<float> (774.0f, 84.0f, 150.0f, 14.0f));
+    CHECK_FALSE (right->labelOnRight);
+
+    // Under the plot, on the frequency labels
+    CHECK_FALSE (SpectrumView::readoutAt (plot, { 480.0f, 331.0f }).has_value());
+}
+
+TEST_CASE ("The spectrum's readout stays inside a narrow plot, and a plot narrower than its label has none", "[layout]")
+{
+    // The same cases as webui/test/viewLayout.test.ts: the label fits on neither side of the line
+    const auto narrow = SpectrumView::readoutAt ({ 22.0f, 82.0f, 166.0f, 100.0f }, { 105.0f, 100.0f });
+    REQUIRE (narrow.has_value());
+    CHECK (narrow->label == juce::Rectangle<float> (22.0f, 84.0f, 150.0f, 14.0f));
+
+    CHECK_FALSE (SpectrumView::readoutAt ({ 22.0f, 82.0f, 149.0f, 100.0f }, { 60.0f, 100.0f }).has_value());
 }
 
 TEST_CASE ("The waveform's newest column is at the right, and they all move left as the next one fills", "[layout]")
@@ -286,6 +329,12 @@ TEST_CASE ("Readings are written to one place, or as dashes with nothing to show
     CHECK (MeterText::truePeak (-0.04f) == "0.0");
     CHECK (MeterText::truePeak (12.0f) == "+12.0");
     CHECK (MeterText::truePeak (MeterFrame::noLoudness) == "--.-");
+
+    CHECK (MeterText::frequency (440.4f) == "440 Hz");
+    CHECK (MeterText::frequency (999.7f) == "1.00 kHz");
+    CHECK (MeterText::frequency (1250.0f) == "1.25 kHz");
+    CHECK (MeterText::frequency (12540.0f) == "12.5 kHz");
+    CHECK (MeterText::level (-32.44f) == "-32.4 dB");
 
     CHECK (MeterText::clips (0.0f) == "0");
     CHECK (MeterText::clips (37.0f) == "37");
@@ -403,6 +452,13 @@ TEST_CASE ("A theme is a built-in palette, or the custom one's base with its acc
     CHECK (palette.secondary == 0x445566);
     CHECK (palette.hot == 0x778899);
 
+    // Over the green backdrop, and over none
+    const auto keyed = Themes::withBackdrop (Themes::all[1], 2);
+    CHECK (keyed.background == 0x00ff00u);
+    CHECK (keyed.panel == 0x00ff00u);
+    CHECK (keyed.primary == Themes::all[1].primary);
+    CHECK (Themes::coloursOf (Themes::withBackdrop (Themes::all[1], 0)) == Themes::coloursOf (Themes::all[1]));
+
     CHECK (Themes::toHex (0x00a0ff) == "00a0ff");
     CHECK (Themes::fromHex ("19e6ff") == 0x19e6ffu);
     CHECK (Themes::fromHex ("#FF2BD6") == 0xff2bd6u);
@@ -456,6 +512,52 @@ TEST_CASE_METHOD (ProcessorFixture, "The view menu shows and hides the dashboard
     viewItem (editor, "Off").action();
     CHECK_THAT (getParameter (processor, Parameters::reactivityId), WithinAbs (0.0, 1.0e-4));
     CHECK (viewItem (editor, "Off").isTicked);
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "A backdrop from the view menu puts the meter on one flat colour, and the header keeps the theme", "[editor]")
+{
+    AudioPluginAudioProcessorEditor editor (processor);
+    const juce::Colour green (0xff00ff00);
+
+    viewItem (editor, "Green").action();
+    CHECK (viewItem (editor, "Green").isTicked);
+    editor.showNextFrame (0.016);
+
+    const auto image = editor.createComponentSnapshot (editor.getLocalBounds(), true, 1.0f);
+    const auto spectrum = editor.getDashboard().getPanel (DashboardLayout::spectrum).getBounds() + editor.getDashboard().getPosition();
+
+    // Round the panels, a panel's outline, and inside it
+    CHECK (image.getPixelAt (2, editor.getHeight() - 3) == green);
+    CHECK (image.getPixelAt (spectrum.getX(), spectrum.getCentreY()) == green);
+    CHECK (image.getPixelAt (spectrum.getX() + 4, spectrum.getCentreY()) == green);
+    CHECK (image.getPixelAt (2, 2) == MeterTheme::of (0).panel);
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "The mouse over the spectrum reads the frequency there, until it leaves the plot or capture mode starts", "[editor]")
+{
+    AudioPluginAudioProcessorEditor editor (processor);
+    auto& spectrum = editor.getDashboard().getSpectrum();
+    const auto centre = SpectrumView::plotIn (spectrum.getContentBounds().toFloat()).getCentre().roundToInt();
+
+    CHECK_FALSE (spectrum.getReadout().has_value());
+
+    spectrum.mouseMove (mouseEvent (spectrum, centre, centre, {}));
+    REQUIRE (spectrum.getReadout().has_value());
+    CHECK_THAT (spectrum.getReadout()->hz, WithinAbs (632.5, 3.0));
+
+    // With a button held it still follows the mouse
+    const auto plotLeft = juce::Point<int> (spectrum.getContentBounds().getX(), centre.y);
+    spectrum.mouseDrag (mouseEvent (spectrum, plotLeft, centre));
+    REQUIRE (spectrum.getReadout().has_value());
+    CHECK_THAT (spectrum.getReadout()->hz, WithinAbs (20.0, 1.0));
+
+    editor.setCaptureMode (true);
+    CHECK_FALSE (spectrum.getReadout().has_value());
+    editor.setCaptureMode (false);
+
+    // On the panel's title
+    spectrum.mouseMove (mouseEvent (spectrum, { centre.x, 4 }, { centre.x, 4 }, {}));
+    CHECK_FALSE (spectrum.getReadout().has_value());
 }
 
 TEST_CASE_METHOD (ProcessorFixture, "Dragging the gap between two panels resizes them, and a double-click there puts them back", "[editor]")

@@ -165,8 +165,8 @@ function Demo() {
 
   // The frame keeps its full height, so the page around it doesn't move: the editor shrinks inside its outline
   const editor = engine && (
-    <div className={`size-full rounded-xl ${height < EDITOR_HEIGHT ? 'outline-1 -outline-offset-1 outline-line outline-dashed' : ''}`}>
-      <div className="overflow-hidden rounded-xl transition-[height] duration-300" style={{ height }}>
+    <div className={`size-full ${height < EDITOR_HEIGHT ? 'outline-1 -outline-offset-1 outline-line outline-dashed' : ''}`}>
+      <div className="overflow-hidden transition-[height] duration-300" style={{ height }}>
         <Editor backend={engine.backend} />
       </div>
     </div>

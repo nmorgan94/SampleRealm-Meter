@@ -3,6 +3,11 @@ import type { Rect } from '@samplerealm/modules/editor/layout.ts';
 
 export type { Rect };
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export const EMPTY: Rect = { left: 0, top: 0, width: 0, height: 0 };
 
 export const right = (r: Rect) => r.left + r.width;

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decodeFrame, frameReader } from '../src/meter/frame.ts';
-import { choiceAt, colour, parseHex, sanitiseCustomTheme, themeOf, themeVariables } from '../src/meter/theme.ts';
+import { choiceAt, colour, parseHex, sanitiseCustomTheme, themeOf, themeVariables, withBackdrop } from '../src/meter/theme.ts';
 import { engine, meter, param } from './engine.ts';
 
 test('the frame is laid out as the engine fills it', () => {
@@ -37,6 +37,11 @@ test('a theme is a built-in palette, or the custom one\'s base with its accents'
 
   // Before the user has changed it, the first theme
   assert.deepEqual(themeOf(themes, themes.length, meter.customTheme), themes[0]);
+
+  // Over the green backdrop, and over none
+  assert.deepEqual(withBackdrop(themes[1], meter.backdrops, 2), { ...themes[1], background: '00ff00', panel: '00ff00' });
+  assert.equal(withBackdrop(themes[1], meter.backdrops, 0), themes[1]);
+  assert.equal(meter.backdrops.length, param('backdrop').choices.length - 1);
 
   assert.equal(parseHex('19e6ff'), '19e6ff');
   assert.equal(parseHex('#FF2BD6'), 'ff2bd6');
